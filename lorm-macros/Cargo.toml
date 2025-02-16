@@ -1,0 +1,30 @@
+[package]
+name = "lorm-macros"
+readme = "README.md"
+version = "0.0.2"
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Macros for lorm, a zero cost and lightweight ORM operations for SQLx. Not intended to be used directly."
+categories = ["database"]
+keywords = [
+    "orm",
+    "sql",
+    "sqlx"
+]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+Inflector = { workspace = true, features = ["heavyweight"] }
+quote = { workspace = true, features = ["proc-macro"] }
+syn = { workspace = true, features = ["proc-macro", "derive", "parsing", "printing", "extra-traits"] }
+pluralizer = { workspace = true }
+
+[features]
+default = ["sqlite"]
+postgres = []
+sqlite = []
+mysql = []
