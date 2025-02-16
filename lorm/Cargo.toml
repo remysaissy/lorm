@@ -1,0 +1,36 @@
+[package]
+name = "lorm"
+readme = "README.md"
+version = "0.0.2"
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "A zero cost and lightweight ORM operations for SQLx."
+categories = ["database"]
+keywords = [
+    "orm",
+    "sql",
+    "sqlx"
+]
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["sqlite"]
+sqlite = ["lorm-macros/sqlite", "sqlx/sqlite"]
+postgres = ["lorm-macros/postgres", "sqlx/postgres"]
+mysql = ["lorm-macros/mysql", "sqlx/mysql"]
+
+[dependencies]
+lorm-macros = { path = "../lorm-macros", version = "0.0.2", optional = true }
+sqlx = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["std", "derive"] }
+thiserror = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+sqlx = { workspace = true, features = ["sqlite", "runtime-tokio-rustls", "chrono", "derive", "uuid", "migrate"] }
+chrono = { workspace = true, features = ["std", "serde"] }
+uuid = { workspace = true, features = ["std", "serde", "v4"] }
