@@ -17,26 +17,3 @@ impl Display for OrderBy {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub enum WhereOp {
-    #[default]
-    Equal,
-    NotEqual,
-    Less,
-    LessOrEqual,
-    More,
-    MoreOrEqual,
-}
-
-impl Display for WhereOp {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WhereOp::Equal => write!(f, "="),
-            WhereOp::NotEqual => write!(f, "!="),
-            WhereOp::Less => write!(f, "<"),
-            WhereOp::LessOrEqual => write!(f, "<="),
-            WhereOp::More => write!(f, ">"),
-            WhereOp::MoreOrEqual => write!(f, ">="),
-        }
-    }
-}

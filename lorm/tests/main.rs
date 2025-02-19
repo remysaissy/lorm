@@ -21,7 +21,7 @@ struct User {
 
     #[allow(unused)]
     #[lorm(readonly)]
-    pub count: Option<i64>,
+    pub count: Option<i32>,
 
     #[allow(unused)]
     #[lorm(transient)]
@@ -56,6 +56,9 @@ struct AltUser {
     pub id: i32,
 
     pub email: String,
+
+    #[lorm(by)]
+    pub count: i32,
 
     #[allow(unused)]
     #[lorm(created_at)]
@@ -283,4 +286,37 @@ async fn test_automatic_pk_and_ts_insertion_update_is_working() {
     let u = u.save(&pool).await.unwrap();
     let res = AltUser::by_id(&pool, u.id.clone()).await.unwrap();
     assert_eq!(res.is_none(), false);
+}
+
+#[tokio::test]
+async fn test_where_is_working() {
+    let pool = get_pool().await;
+    let mut u = AltUser::default();
+    u.email = "alice.dupont@domain.com".to_string();
+    let u = u.save(&pool).await.unwrap();
+
+    let res = AltUser::select()
+        .where_id_equals(u.id)
+        .build(&pool)
+        .await
+        .unwrap();
+    assert_eq!(res.len(), 1);
+}
+
+#[tokio::test]
+async fn test_between_is_working() {
+    let pool = get_pool().await;
+    for i in 0..10 {
+        let mut u = AltUser::default();
+        u.email = format!("jean.dupont@domain-{i}.com").to_string();
+        u.count = i;
+        let _ = u.save(&pool).await.unwrap();
+    }
+
+    let res = AltUser::select()
+        .where_count_is_between(2, 4)
+        .build(&pool)
+        .await
+        .unwrap();
+    assert_eq!(res.len(), 3);
 }
