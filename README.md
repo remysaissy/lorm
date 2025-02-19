@@ -67,6 +67,20 @@ It uses a specific function call to check if the returned value if the default v
 The function call is expected to return bool.
 Defaults to class_type::default() which assumes both the Default and PartialEq trait are implemented.
 
+### Select methods
+Queries are run using the Class::select() method.
+This method returns a builder to configure the select.
+
+- where_{field}_is_between(value)
+- where_{field}_equals(value)
+- where_{field}_not_equals(value)
+- where_{field}_is_less_than(value)
+- where_{field}_is_less_or_equal_than(value)
+- where_{field}_is_greater_than(value)
+- where_{field}_is_greater_or_equal_than(value)
+- order_by_{field}(OrderBy::Asc)
+- group_by_{field}()
+
 ### Examples
 Usage examples are documented in the test cases. Please refer to `lorm/tests/main.rs` for a concrete example of how to use each feature.  
 
