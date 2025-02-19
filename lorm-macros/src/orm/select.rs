@@ -1,6 +1,6 @@
 use crate::helpers::get_field_name;
 use crate::models::OrmModel;
-use quote::{__private::TokenStream, format_ident, quote};
+use quote::{__private::TokenStream, format_ident, quote, ToTokens};
 
 pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let trait_ident = format_ident!("{}SelectTrait", model.struct_name);
@@ -11,15 +11,58 @@ pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Res
     let table_columns = &model.table_columns;
 
     let impl_tokens: Vec<TokenStream> = model.by_fields.iter().map(|field| {
+        let field_ty = &field.ty.to_token_stream();
         let field_ident = field.ident.as_ref().unwrap();
         let field_name = get_field_name(field);
-        let where_fn = format_ident!("where_{}", field_ident);
+        let where_between_fn = format_ident!("where_{}_is_between", field_ident);
+        let where_equals_fn = format_ident!("where_{}_equals", field_ident);
+        let where_not_equals_fn = format_ident!("where_{}_not_equals", field_ident);
+        let where_is_less_fn = format_ident!("where_{}_is_less_than", field_ident);
+        let where_is_less_or_equal_fn = format_ident!("where_{}_is_less_or_equal_than", field_ident);
+        let where_is_greater_fn = format_ident!("where_{}_is_greater_than", field_ident);
+        let where_is_greater_or_equal_fn = format_ident!("where_{}_is_greater_or_equal_than", field_ident);
         let order_by_fn = format_ident!("order_by_{}", field_ident);
         let group_by_fn = format_ident!("group_by_{}", field_ident);
 
         let code = quote! {
-            #struct_visibility fn #where_fn(mut self, obj: &#struct_name, where_stmt: lorm::predicates::WhereOp) -> #builder_struct_ident {
-                let stmt = format!("{} {} {}", #field_name, where_stmt, obj.#field_ident).to_string();
+            #struct_visibility fn #where_equals_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+                let stmt = format!("{} = {}", #field_name, value).to_string();
+                self.where_stmt.push(stmt);
+                self
+            }
+
+            #struct_visibility fn #where_not_equals_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+                let stmt = format!("{} != {}", #field_name, value).to_string();
+                self.where_stmt.push(stmt);
+                self
+            }
+
+            #struct_visibility fn #where_is_less_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+                let stmt = format!("{} < {}", #field_name, value).to_string();
+                self.where_stmt.push(stmt);
+                self
+            }
+
+            #struct_visibility fn #where_is_less_or_equal_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+                let stmt = format!("{} <= {}", #field_name, value).to_string();
+                self.where_stmt.push(stmt);
+                self
+            }
+
+            #struct_visibility fn #where_is_greater_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+                let stmt = format!("{} > {}", #field_name, value).to_string();
+                self.where_stmt.push(stmt);
+                self
+            }
+
+            #struct_visibility fn #where_is_greater_or_equal_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+                let stmt = format!("{} >= {}", #field_name, value).to_string();
+                self.where_stmt.push(stmt);
+                self
+            }
+
+            #struct_visibility fn #where_between_fn(mut self, left: #field_ty, right: #field_ty) -> #builder_struct_ident {
+                let stmt = format!("{} BETWEEN {} AND {}", #field_name, left, right).to_string();
                 self.where_stmt.push(stmt);
                 self
             }
