@@ -3,7 +3,7 @@
 //! adding the following to your project's Cargo.toml:
 //! ```toml
 //! [dependencies]
-//! lorm = { version = "0.1" }
+//! lorm = { version = "0" }
 //! sqlx = { version = "0.8" }
 //! ```
 //!
