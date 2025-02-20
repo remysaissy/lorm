@@ -118,6 +118,11 @@ async fn test_user_is_created() {
 
     let u = res.unwrap();
     assert_eq!(u.created_at.to_rfc2822() == u.updated_at.to_rfc2822(), true);
+
+    let res = User::by_email(&pool, "alice.dupont@domain.com".to_string())
+        .await
+        .unwrap();
+    assert_eq!(res.is_none(), false);
 }
 
 #[tokio::test]
@@ -296,7 +301,7 @@ async fn test_where_is_working() {
     let u = u.save(&pool).await.unwrap();
 
     let res = AltUser::select()
-        .where_id_equals(u.id)
+        .where_equal_id(u.id)
         .build(&pool)
         .await
         .unwrap();
@@ -314,7 +319,7 @@ async fn test_between_is_working() {
     }
 
     let res = AltUser::select()
-        .where_count_is_between(2, 4)
+        .where_between_count(2, 4)
         .build(&pool)
         .await
         .unwrap();
