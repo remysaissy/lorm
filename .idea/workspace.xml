@@ -8,14 +8,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6f5f441e-b899-4c42-8f53-0402403b065e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/lorm.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/lorm.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lorm-macros/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/Cargo.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lorm-macros/src/orm/select.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/orm/select.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lorm/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/lorm/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lorm/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lorm/src/predicates.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm/src/predicates.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lorm/tests/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm/tests/main.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -33,9 +28,9 @@
   <component name="ProjectCodeStyleSettingsMigration">
     <option name="version" value="2" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 3
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
   <component name="ProjectId" id="2tGauHJz0MBGlQXQlA8xmCzqxcP" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -47,6 +42,8 @@
     "Cargo.Test test_automatic_pk_and_ts_insertion_update_is_working.executor": "Run",
     "Cargo.Test test_between_is_working.executor": "Run",
     "Cargo.Test test_offset_is_working.executor": "Run",
+    "Cargo.Test test_user_does_not_exists.executor": "Run",
+    "Cargo.Test test_user_is_created.executor": "Run",
     "Cargo.Test test_where_is_working.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
@@ -67,7 +64,7 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
-  <component name="RunManager" selected="Cargo.Test main">
+  <component name="RunManager" selected="Cargo.Test test_user_is_created">
     <configuration name="Test lorm" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
       <option name="buildProfileId" value="test" />
       <option name="command" value="test --workspace" />
@@ -103,23 +100,6 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration name="Test test_automatic_pk_and_ts_insertion_update_is_working" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
-      <option name="command" value="test --package lorm --test main test_automatic_pk_and_ts_insertion_update_is_working -- --exact" />
-      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-      <envs />
-      <option name="emulateTerminal" value="true" />
-      <option name="channel" value="DEFAULT" />
-      <option name="requiredFeatures" value="true" />
-      <option name="allFeatures" value="false" />
-      <option name="withSudo" value="false" />
-      <option name="buildTarget" value="REMOTE" />
-      <option name="backtrace" value="SHORT" />
-      <option name="isRedirectInput" value="false" />
-      <option name="redirectInputPath" value="" />
-      <method v="2">
-        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
-      </method>
-    </configuration>
     <configuration name="Test test_between_is_working" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="command" value="test --package lorm --test main test_between_is_working -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -137,8 +117,25 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration name="Test test_offset_is_working" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
-      <option name="command" value="test --package lorm --test main test_offset_is_working -- --exact" />
+    <configuration name="Test test_user_does_not_exists" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package lorm --test main test_user_does_not_exists -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test test_user_is_created" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package lorm --test main test_user_is_created -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <envs />
       <option name="emulateTerminal" value="true" />
@@ -171,29 +168,13 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration default="true" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-      <option name="command" value="run" />
-      <envs />
-      <option name="emulateTerminal" value="true" />
-      <option name="channel" value="DEFAULT" />
-      <option name="requiredFeatures" value="true" />
-      <option name="allFeatures" value="false" />
-      <option name="withSudo" value="false" />
-      <option name="buildTarget" value="REMOTE" />
-      <option name="backtrace" value="SHORT" />
-      <option name="isRedirectInput" value="false" />
-      <option name="redirectInputPath" value="" />
-      <method v="2">
-        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
-      </method>
-    </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Cargo.Test test_user_is_created" />
+        <item itemvalue="Cargo.Test test_user_does_not_exists" />
         <item itemvalue="Cargo.Test main" />
         <item itemvalue="Cargo.Test test_where_is_working" />
         <item itemvalue="Cargo.Test test_between_is_working" />
-        <item itemvalue="Cargo.Test test_offset_is_working" />
-        <item itemvalue="Cargo.Test test_automatic_pk_and_ts_insertion_update_is_working" />
       </list>
     </recent_temporary>
   </component>
@@ -216,7 +197,8 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1739981085753</updated>
-      <workItem from="1739981086967" duration="6262000" />
+      <workItem from="1739981086967" duration="6377000" />
+      <workItem from="1740047834044" duration="599000" />
     </task>
     <servers />
   </component>
