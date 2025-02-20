@@ -71,13 +71,13 @@ Defaults to class_type::default() which assumes both the Default and PartialEq t
 Queries are run using the Class::select() method.
 This method returns a builder to configure the select.
 
-- where_{field}_is_between(value)
-- where_{field}_equals(value)
-- where_{field}_not_equals(value)
-- where_{field}_is_less_than(value)
-- where_{field}_is_less_or_equal_than(value)
-- where_{field}_is_greater_than(value)
-- where_{field}_is_greater_or_equal_than(value)
+- where_between_{field}(value)
+- where_equal_{field}(value)
+- where_not_equal_{field}(value)
+- where_less_{field}(value)
+- where_less_equal_{field}(value)
+- where_more{field}(value)
+- where_more_equal_{field}(value)
 - order_by_{field}(OrderBy::Asc)
 - group_by_{field}()
 

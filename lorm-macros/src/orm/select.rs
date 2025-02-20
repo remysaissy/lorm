@@ -14,24 +14,24 @@ pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Res
         let field_ty = &field.ty.to_token_stream();
         let field_ident = field.ident.as_ref().unwrap();
         let field_name = get_field_name(field);
-        let where_between_fn = format_ident!("where_{}_is_between", field_ident);
-        let where_equals_fn = format_ident!("where_{}_equals", field_ident);
-        let where_not_equals_fn = format_ident!("where_{}_not_equals", field_ident);
-        let where_is_less_fn = format_ident!("where_{}_is_less_than", field_ident);
-        let where_is_less_or_equal_fn = format_ident!("where_{}_is_less_or_equal_than", field_ident);
-        let where_is_greater_fn = format_ident!("where_{}_is_greater_than", field_ident);
-        let where_is_greater_or_equal_fn = format_ident!("where_{}_is_greater_or_equal_than", field_ident);
+        let where_between_fn = format_ident!("where_between_{}", field_ident);
+        let where_equal_fn = format_ident!("where_equal_{}", field_ident);
+        let where_not_equal_fn = format_ident!("where_not_equal_{}", field_ident);
+        let where_is_less_fn = format_ident!("where_less_{}", field_ident);
+        let where_is_less_or_equal_fn = format_ident!("where_less_equal_{}", field_ident);
+        let where_is_more_fn = format_ident!("where_more_{}", field_ident);
+        let where_is_more_or_equal_fn = format_ident!("where_more_equal_{}", field_ident);
         let order_by_fn = format_ident!("order_by_{}", field_ident);
         let group_by_fn = format_ident!("group_by_{}", field_ident);
 
         let code = quote! {
-            #struct_visibility fn #where_equals_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+            #struct_visibility fn #where_equal_fn(mut self, value: #field_ty) -> #builder_struct_ident {
                 let stmt = format!("{} = {}", #field_name, value).to_string();
                 self.where_stmt.push(stmt);
                 self
             }
 
-            #struct_visibility fn #where_not_equals_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+            #struct_visibility fn #where_not_equal_fn(mut self, value: #field_ty) -> #builder_struct_ident {
                 let stmt = format!("{} != {}", #field_name, value).to_string();
                 self.where_stmt.push(stmt);
                 self
@@ -49,13 +49,13 @@ pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Res
                 self
             }
 
-            #struct_visibility fn #where_is_greater_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+            #struct_visibility fn #where_is_more_fn(mut self, value: #field_ty) -> #builder_struct_ident {
                 let stmt = format!("{} > {}", #field_name, value).to_string();
                 self.where_stmt.push(stmt);
                 self
             }
 
-            #struct_visibility fn #where_is_greater_or_equal_fn(mut self, value: #field_ty) -> #builder_struct_ident {
+            #struct_visibility fn #where_is_more_or_equal_fn(mut self, value: #field_ty) -> #builder_struct_ident {
                 let stmt = format!("{} >= {}", #field_name, value).to_string();
                 self.where_stmt.push(stmt);
                 self

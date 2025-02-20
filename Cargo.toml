@@ -7,9 +7,17 @@ members = [
 
 [workspace.package]
 edition = "2021"
+version = "0.0.4"
 license = "Apache-2.0"
 repository = "https://github.com/remysaissy/lorm.git"
 authors = ["Rémy Saissy <remy.saissy@gmail.com>"]
+readme = "README.md"
+categories = ["database"]
+keywords = [
+    "orm",
+    "sql",
+    "sqlx"
+]
 
 [workspace.dependencies]
 tokio = { version = "1", default-features = false }
