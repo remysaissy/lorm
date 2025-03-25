@@ -16,17 +16,16 @@ pub fn generate_by(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Result<
         let field_name = get_field_name(field);
         let by_fn = format_ident!("by_{}",field_ident);
         let placeholder = db_placeholder(field, 1).unwrap();
-
         let trait_code = quote! {
             async fn #by_fn(pool: &#db_pool_type, value: #field_type) -> lorm::errors::Result<Option<#struct_name>>;
         };
 
         let impl_code = quote! {
             async fn #by_fn(pool: &#db_pool_type, value: #field_type) -> lorm::errors::Result<Option<#struct_name>> {
-                let sql = format!("SELECT {} FROM {} WHERE {} = {}",#table_columns, #table_name, #field_name, #placeholder);
+                let sql = format!("SELECT {} FROM {} WHERE {} = {}", #table_columns, #table_name, #field_name, #placeholder);
                 let r = sqlx::query_as::<_, Self>(&sql)
-                .bind(value)
-                .fetch_optional(pool).await?;
+                    .bind(value)
+                    .fetch_optional(pool).await?;
                 Ok(r)
             }
         };
