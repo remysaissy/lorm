@@ -67,7 +67,7 @@ impl<'a> OrmModel<'a> {
                 if is_fk(field) {
                     fk_fields.push(field);
                 }
-                if is_by(field) || is_pk(field) {
+                if is_by(field) || is_pk(field) || is_created_at(field) || is_updated_at(field) {
                     by_fields.push(field);
                 }
                 if !is_readonly(field) {
