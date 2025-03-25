@@ -281,6 +281,20 @@ async fn test_group_by_is_working() {
     assert_eq!(res.len(), 2);
     let u = res.last().unwrap();
     assert_eq!(u.email, "alice.dupont@domain-3.com");
+
+    let res = User::select()
+        .group_by_email()
+        .group_by_id()
+        .order_by_created_at(OrderBy::Asc)
+        .limit(2)
+        .offset(2)
+        .build(&pool)
+        .await
+        .unwrap();
+    assert_eq!(res.is_empty(), false);
+    assert_eq!(res.len(), 2);
+    let u = res.last().unwrap();
+    assert_eq!(u.email, "alice.dupont@domain-3.com");
 }
 
 #[tokio::test]
