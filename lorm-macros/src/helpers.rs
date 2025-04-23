@@ -1,6 +1,6 @@
 use crate::util::*;
 use inflector::Inflector;
-use quote::{__private::TokenStream, quote, ToTokens};
+use quote::{__private::TokenStream, ToTokens, quote};
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Expr, Field};
 
@@ -20,11 +20,6 @@ pub(crate) fn is_pk(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "pk")
 }
 
-/// foreign key field
-pub(crate) fn is_fk(field: &Field) -> bool {
-    get_attribute_by_key(&field.attrs, "lorm", "fk").is_some()
-}
-
 /// by field
 pub(crate) fn is_by(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "by")
@@ -38,20 +33,6 @@ pub(crate) fn is_created_at(field: &Field) -> bool {
 /// updated_at field
 pub(crate) fn is_updated_at(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "updated_at")
-}
-
-/// fk_method
-pub(crate) fn get_fk_method(field: &Field) -> syn::Result<TokenStream> {
-    match get_attribute_by_key(&field.attrs, "lorm", "fk") {
-        None => Err(syn::Error::new_spanned(field, "fk method missing")),
-        Some(method_name) => {
-            let method_name: Expr =
-                syn::parse_str(&method_name).expect("Failed to parse new method name");
-            Ok(quote! {
-                #method_name
-            })
-        }
-    }
 }
 
 /// new_method

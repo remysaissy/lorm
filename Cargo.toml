@@ -6,8 +6,8 @@ members = [
 ]
 
 [workspace.package]
-edition = "2021"
-version = "0.0.5"
+edition = "2024"
+version = "0.0.6"
 license = "Apache-2.0"
 repository = "https://github.com/remysaissy/lorm.git"
 authors = ["Rémy Saissy <remy.saissy@gmail.com>"]
@@ -21,12 +21,12 @@ keywords = [
 
 [workspace.dependencies]
 tokio = { version = "1", default-features = false }
-sqlx = { version = "0.8", default-features = false }
+sqlx = { version = "0", default-features = false }
 thiserror = { version = "2", default-features = false }
-chrono = { version = "0.4", default-features = false }
+chrono = { version = "0", default-features = false }
 uuid = { version = "1", default-features = false }
 serde = { version = "1", default-features = false }
 syn = { version = "2", default-features = false }
 quote = { version = "1", default-features = false }
-Inflector = { version = "0.11", default-features = false }
-pluralizer = { version = "0.5" }
+Inflector = { version = "0", default-features = false }
+pluralizer = { version = "0", default-features = false }

@@ -40,11 +40,7 @@ Special cases to consider:
  - If applied to create_at or updated_at field, timestamp generation is left to the database. No update is possible
 
 **CRUD operation using a specific field**
-Add the `#[lorm(by)]` annotation to generate by_<field>, delete_by_<field> and select with order_by_<field>, group_by_<field>, limit and offset methods.
-
-**Foreign key support**
-Add the `#[lorm(fk="module::path::class")]` annotation to a foreign key field to generate the get_<field>() method which returns an instance of `module::path::class`.
-The generated method removes the trailing _id if present in the field name.
+Add the `#[lorm(by)]` annotation to generate with_<field>, by_<field>, delete_by_<field> and select with order_by_<field>, group_by_<field>, limit and offset methods.
 
 **created_at support**
 Add the `#[lorm(created_at)]` annotation to mark the field as the `created_at` field. 

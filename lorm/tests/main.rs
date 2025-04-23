@@ -1,6 +1,6 @@
 use chrono::FixedOffset;
-use lorm::predicates::OrderBy;
 use lorm::ToLOrm;
+use lorm::predicates::OrderBy;
 use sqlx::migrate::MigrateDatabase;
 use sqlx::{Executor, FromRow, Sqlite, SqlitePool};
 use std::thread::sleep;
@@ -38,18 +38,6 @@ struct User {
 }
 
 #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
-struct Post {
-    #[lorm(pk)]
-    #[lorm(new = "Uuid::new_v4()")]
-    pub id: Uuid,
-
-    pub content: String,
-
-    #[lorm(fk = "User")]
-    pub user_id: Uuid,
-}
-
-#[derive(Debug, Default, Clone, FromRow, ToLOrm)]
 struct AltUser {
     #[lorm(pk)]
     #[lorm(readonly)]
@@ -58,7 +46,7 @@ struct AltUser {
     pub email: String,
 
     #[lorm(by)]
-    pub count: i32,
+    pub count: Option<i32>,
 
     #[allow(unused)]
     #[lorm(created_at)]
@@ -96,14 +84,12 @@ pub async fn get_pool() -> SqlitePool {
 #[tokio::test]
 async fn test_user_does_not_exists() {
     let pool = get_pool().await;
-    let res = User::by_email(&pool, "alice.dupont@domain.com".to_string())
-        .await
-        .unwrap();
-    assert_eq!(res.is_none(), true);
+    let res = User::by_email(&pool, &"alice.dupont@domain.com".to_string()).await;
+    assert_eq!(res.is_err(), true);
 
     let id = Uuid::new_v4();
-    let res = User::by_id(&pool, id).await.unwrap();
-    assert_eq!(res.is_none(), true);
+    let res = User::by_id(&pool, &id).await;
+    assert_eq!(res.is_err(), true);
 }
 
 #[tokio::test]
@@ -113,36 +99,14 @@ async fn test_user_is_created() {
     u.email = "alice.dupont@domain.com".to_string();
     let u = u.save(&pool).await.unwrap();
 
-    let res = User::by_id(&pool, u.id.clone()).await.unwrap();
-    assert_eq!(res.is_none(), false);
+    let res = User::by_id(&pool, &u.id).await;
+    assert_eq!(res.is_err(), false);
 
     let u = res.unwrap();
     assert_eq!(u.created_at.to_rfc2822() == u.updated_at.to_rfc2822(), true);
 
-    let res = User::by_email(&pool, "alice.dupont@domain.com".to_string())
-        .await
-        .unwrap();
-    assert_eq!(res.is_none(), false);
-}
-
-#[tokio::test]
-async fn test_post_is_created() {
-    let pool = get_pool().await;
-    let mut u = User::default();
-    u.email = "alice.dupont@domain.com".to_string();
-    let u = u.save(&pool).await.unwrap();
-
-    let mut p = Post::default();
-    p.content = "hello world".to_string();
-    p.user_id = u.id;
-    let p = p.save(&pool).await.unwrap();
-
-    let u2 = p.get_user(&pool).await;
-    assert_eq!(u2.is_err(), false);
-    let u2 = u2.unwrap();
-    assert_eq!(u2.is_some(), true);
-    let u2 = u2.unwrap();
-    assert_eq!(u2.id, u.id);
+    let res = User::by_email(&pool, &"alice.dupont@domain.com".to_string()).await;
+    assert_eq!(res.is_err(), false);
 }
 
 #[tokio::test]
@@ -157,8 +121,8 @@ async fn test_user_is_updated() {
 
     u.email = "alice.dupont@new-domain.com".to_string();
     let u = u.save(&pool).await.unwrap();
-    let res = User::by_id(&pool, u.id.clone()).await.unwrap();
-    assert_eq!(res.is_none(), false);
+    let res = User::by_id(&pool, &u.id).await;
+    assert_eq!(res.is_err(), false);
     let u = res.unwrap();
     assert_eq!(u.email, "alice.dupont@new-domain.com".to_string());
     assert_eq!(u.created_at.to_rfc3339() != u.updated_at.to_rfc3339(), true);
@@ -171,12 +135,12 @@ async fn test_user_is_deleted() {
     u.email = "alice.dupont@domain.com".to_string();
     let u = u.save(&pool).await.unwrap();
 
-    let res = User::by_id(&pool, u.id.clone()).await.unwrap();
-    assert_eq!(res.is_none(), false);
+    let res = User::by_id(&pool, &u.id).await;
+    assert_eq!(res.is_err(), false);
 
     u.delete(&pool).await.unwrap();
-    let res = User::by_id(&pool, u.id.clone()).await.unwrap();
-    assert_eq!(res.is_none(), true);
+    let res = User::by_id(&pool, &u.id).await;
+    assert_eq!(res.is_err(), true);
 }
 
 #[tokio::test]
@@ -191,6 +155,19 @@ async fn test_user_are_listed() {
     let res = User::select().limit(2).build(&pool).await.unwrap();
     assert_eq!(res.is_empty(), false);
     assert_eq!(res.len(), 2);
+}
+
+#[tokio::test]
+async fn test_with_is_working() {
+    let pool = get_pool().await;
+    for i in 0..10 {
+        let mut u = AltUser::default();
+        u.email = format!("alice.dupont@domain-{i}.com").to_string();
+        u.count = Some(42);
+        let _ = u.save(&pool).await.unwrap();
+    }
+    let res = AltUser::with_count(&pool, 42).await.unwrap();
+    assert_eq!(res.len(), 10);
 }
 
 #[tokio::test]
@@ -303,8 +280,8 @@ async fn test_automatic_pk_and_ts_insertion_update_is_working() {
     let mut u = AltUser::default();
     u.email = "alice.dupont@domain.com".to_string();
     let u = u.save(&pool).await.unwrap();
-    let res = AltUser::by_id(&pool, u.id.clone()).await.unwrap();
-    assert_eq!(res.is_none(), false);
+    let res = AltUser::by_id(&pool, u.id).await;
+    assert_eq!(res.is_err(), false);
 }
 
 #[tokio::test]
@@ -328,7 +305,7 @@ async fn test_between_is_working() {
     for i in 0..10 {
         let mut u = AltUser::default();
         u.email = format!("jean.dupont@domain-{i}.com").to_string();
-        u.count = i;
+        u.count = Some(i);
         let _ = u.save(&pool).await.unwrap();
     }
 
