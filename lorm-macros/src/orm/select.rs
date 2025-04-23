@@ -1,6 +1,7 @@
 use crate::helpers::get_field_name;
 use crate::models::OrmModel;
-use quote::{__private::TokenStream, format_ident, quote, ToTokens};
+use crate::util::get_type_as_reference;
+use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let trait_ident = format_ident!("{}SelectTrait", model.struct_name);
@@ -11,7 +12,7 @@ pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Res
     let table_columns = &model.table_columns;
 
     let impl_tokens: Vec<TokenStream> = model.by_fields.iter().map(|field| {
-        let field_ty = &field.ty.to_token_stream();
+        let field_ty = get_type_as_reference(&field.ty).unwrap();
         let field_ident = field.ident.as_ref().unwrap();
         let field_name = get_field_name(field);
         let where_between_fn = format_ident!("where_between_{}", field_ident);
