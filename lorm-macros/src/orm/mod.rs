@@ -1,8 +1,8 @@
 mod by;
 mod delete;
-mod fk;
 mod save;
 mod select;
+mod with;
 
 use crate::helpers::*;
 use crate::models::OrmModel;
@@ -54,15 +54,15 @@ pub fn expand_derive_to_orm_struct(
     let model = OrmModel::from_fields(input, fields)?;
     let db_pool_type = db_pool_type(input)?;
 
+    let with_code = with::generate_with(&db_pool_type, &model)?;
     let by_code = by::generate_by(&db_pool_type, &model)?;
-    let fk_code = fk::generate_fk(&db_pool_type, &model)?;
     let select_code = select::generate_select(&db_pool_type, &model)?;
     let delete_code = delete::generate_delete(&db_pool_type, &model)?;
     let save_code = save::generate_save(&db_pool_type, &model)?;
 
     Ok(TokenStream::from(quote! {
+        #with_code
         #by_code
-        #fk_code
         #select_code
         #delete_code
         #save_code
