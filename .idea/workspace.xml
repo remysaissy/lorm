@@ -4,15 +4,35 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="CargoProjects">
-    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
+    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
+      <package file="$PROJECT_DIR$/lorm">
+        <enabledFeature name="default" />
+      </package>
+      <package file="$PROJECT_DIR$/lorm-macros">
+        <enabledFeature name="default" />
+      </package>
+    </cargoProject>
   </component>
   <component name="ChangeListManager">
     <list default="true" id="833d0edf-cfb8-482a-a207-d7b90ba694d8" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/lorm-macros/src/orm/with.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/src/helpers.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/helpers.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/lib.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lorm-macros/src/models.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/models.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lorm-macros/src/orm/by.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/orm/by.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/src/orm/delete.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/orm/delete.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/src/orm/fk.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/src/orm/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/orm/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/src/orm/save.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/orm/save.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/src/orm/select.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/orm/select.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm-macros/src/util.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm-macros/src/util.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lorm/tests/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lorm/tests/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lorm/tests/resources/migrations/02_posts_table.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/rust-toolchain.toml" beforeDir="false" afterPath="$PROJECT_DIR$/rust-toolchain.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -23,15 +43,19 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
+  <component name="KubernetesApiProvider"><![CDATA[{
+  "isMigrated": true
+}]]></component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="Oeg1hOA0" />
   </component>
   <component name="ProjectCodeStyleSettingsMigration">
     <option name="version" value="2" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 3
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
   <component name="ProjectId" id="2uozfFSTGxsLzhZ1qwfBzquCxhB" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -39,6 +63,9 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Cargo.Test main.executor": "Run",
+    "Cargo.Test test_user_does_not_exists.executor": "Run",
+    "Cargo.Test test_with_is_working.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.go.formatter.settings.were.checked": "true",
@@ -46,19 +73,25 @@
     "git-widget-placeholder": "main",
     "go.import.settings.migrated": "true",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/Users/remy.saissy/Projects/perso/lorm",
+    "last_opened_file_path": "/Users/remy.saissy/Projects/perso/lorm/lorm-macros/src/orm",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
     "org.rust.first.attach.projects": "true",
     "settings.editor.selected.configurable": "preferences.pluginManager",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
-  <component name="RunManager">
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/lorm-macros/src/orm" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Cargo.Test main">
     <configuration name="Test lorm" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
       <option name="buildProfileId" value="test" />
       <option name="command" value="test --workspace" />
@@ -77,8 +110,9 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
-    <configuration default="true" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-      <option name="command" value="run" />
+    <configuration name="Test main" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package lorm --test main" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <envs />
       <option name="emulateTerminal" value="true" />
       <option name="channel" value="DEFAULT" />
@@ -93,6 +127,47 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
+    <configuration name="Test test_user_does_not_exists" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package lorm --test main test_user_does_not_exists -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test test_with_is_working" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="test --package lorm --test main test_with_is_working -- --exact" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Cargo.Test main" />
+        <item itemvalue="Cargo.Test test_user_does_not_exists" />
+        <item itemvalue="Cargo.Test test_with_is_working" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="RustProjectSettings">
     <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
@@ -100,7 +175,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-9823dce3aa75-a94e463ab2e7-intellij.indexing.shared.core-IU-243.26053.27" />
+        <option value="bundled-js-predefined-d6986cc7102b-f27c65a3e318-JavaScript-IU-251.23774.435" />
       </set>
     </attachedChunks>
   </component>
@@ -113,6 +188,7 @@
       <option name="presentableId" value="Default" />
       <updated>1742929815586</updated>
       <workItem from="1742929816734" duration="3661000" />
+      <workItem from="1745398375409" duration="12581000" />
     </task>
     <servers />
   </component>

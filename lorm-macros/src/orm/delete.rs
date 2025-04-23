@@ -16,6 +16,7 @@ pub fn generate_delete(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Res
         pk_name,
         db_placeholder(model.pk_field, 1).unwrap()
     );
+    let sql_ident = format!("DELETE FROM {} WHERE {}", table_name, pk_placeholder);
 
     Ok(quote! {
         #struct_visibility trait #trait_ident {
@@ -24,8 +25,7 @@ pub fn generate_delete(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Res
 
         impl #trait_ident for #struct_name {
             async fn delete(&self, pool: &#db_pool_type) -> lorm::errors::Result<()> {
-                let sql = format!("DELETE FROM {} WHERE {}", #table_name, #pk_placeholder);
-                let _ = sqlx::query(&sql)
+                sqlx::query(#sql_ident)
                 .bind(&self.#pk_column)
                 .execute(pool).await?;
                 Ok(())

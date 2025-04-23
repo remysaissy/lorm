@@ -1,5 +1,5 @@
 use crate::helpers::{
-    get_field_name, get_table_name, is_by, is_created_at, is_fk, is_pk, is_readonly, is_transient,
+    get_field_name, get_table_name, is_by, is_created_at, is_pk, is_readonly, is_transient,
     is_updated_at,
 };
 use syn::punctuated::Punctuated;
@@ -11,7 +11,6 @@ pub(crate) struct OrmModel<'a> {
     pub(crate) struct_visibility: &'a Visibility,
     pub(crate) table_name: String,
     pub(crate) by_fields: Vec<&'a Field>,
-    pub(crate) fk_fields: Vec<&'a Field>,
     pub(crate) update_fields: Vec<&'a Field>,
     pub(crate) insert_fields: Vec<&'a Field>,
     pub(crate) table_columns: String,
@@ -32,7 +31,6 @@ impl<'a> OrmModel<'a> {
         let struct_visibility = &input.vis;
         let table_name = get_table_name(input);
         let mut by_fields: Vec<&Field> = vec![];
-        let mut fk_fields: Vec<&Field> = vec![];
         let mut update_fields: Vec<&Field> = vec![];
         let mut insert_fields: Vec<&Field> = vec![];
         let mut table_columns_vec: Vec<String> = vec![];
@@ -64,9 +62,6 @@ impl<'a> OrmModel<'a> {
                         is_updated_at_readonly = true;
                     }
                 }
-                if is_fk(field) {
-                    fk_fields.push(field);
-                }
                 if is_by(field) || is_pk(field) || is_created_at(field) || is_updated_at(field) {
                     by_fields.push(field);
                 }
@@ -82,7 +77,7 @@ impl<'a> OrmModel<'a> {
                 return Err(syn::Error::new(
                     input.ident.span(),
                     "expected a primary key using #[lorm(pk)] attribute on a field",
-                ))
+                ));
             }
         };
 
@@ -91,7 +86,6 @@ impl<'a> OrmModel<'a> {
             struct_visibility,
             table_name,
             by_fields,
-            fk_fields,
             update_fields,
             insert_fields,
             table_columns: table_columns_vec.join(","),

@@ -1,4 +1,5 @@
-use syn::{LitStr, Type};
+use quote::ToTokens;
+use syn::{LitStr, PathArguments, Type, TypeReference, parse};
 
 /// `#[name(value)]` attribute value exist or not
 pub(crate) fn has_attribute_value(attrs: &[syn::Attribute], name: &str, value: &str) -> bool {
@@ -46,28 +47,59 @@ pub(crate) fn get_attribute_by_key(
     val
 }
 
-/// whether `Option<inner_type>` returns (whether Option, inner_type).
-pub(crate) fn get_option_type(ty: &Type) -> (bool, &Type) {
-    get_inner_type(ty, "Option")
-}
+/// whether a type can be passed as reference or not.
+pub fn get_type_as_reference(ty: &Type) -> syn::Result<Type> {
+    match ty {
+        Type::Path(type_path) => {
+            let last_segment = type_path
+                .path
+                .segments
+                .last()
+                .expect("Type path should have at least one segment");
+            let ident = &last_segment.ident;
 
-/// whether inner_type,such as: Option<String>,Vec<String>
-/// returns (whether, inner_type).
-pub(crate) fn get_inner_type<'a>(ty: &'a Type, name: &str) -> (bool, &'a Type) {
-    if let syn::Type::Path(ref path) = ty {
-        if let Some(segment) = path.path.segments.first() {
-            if segment.ident == name {
-                if let syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-                    args,
-                    ..
-                }) = &segment.arguments
-                {
-                    if let Some(syn::GenericArgument::Type(ty)) = args.first() {
-                        return (true, ty);
+            // Check for primitive types that should not be referenced
+            if matches!(
+                ident.to_string().as_str(),
+                "i8" | "i16"
+                    | "i32"
+                    | "i64"
+                    | "i128"
+                    | "isize"
+                    | "u8"
+                    | "u16"
+                    | "u32"
+                    | "u64"
+                    | "u128"
+                    | "usize"
+                    | "f32"
+                    | "f64"
+                    | "bool"
+                    | "char"
+            ) {
+                return parse(ty.into_token_stream().into());
+            }
+
+            // Check for Option types
+            if ident == "Option" {
+                if let PathArguments::AngleBracketed(angle_bracketed) = &last_segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_type)) =
+                        angle_bracketed.args.first()
+                    {
+                        return get_type_as_reference(inner_type);
                     }
                 }
             }
+
+            // Default to returning the type with a reference
+            let elem = parse(ty.into_token_stream().into()).unwrap();
+            Ok(Type::Reference(TypeReference {
+                and_token: Default::default(),
+                lifetime: None,
+                mutability: None,
+                elem: Box::new(elem),
+            }))
         }
+        _ => parse(ty.into_token_stream().into()),
     }
-    (false, ty)
 }

@@ -79,6 +79,15 @@ pub fn generate_save(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Resul
         }
     };
 
+    let insert_sql_ident = format!(
+        "INSERT INTO {} ({}) VALUES ({}) RETURNING {}",
+        table_name, insert_columns, insert_value_placeholders, table_columns
+    );
+    let update_sql_ident = format!(
+        "UPDATE {} SET {} WHERE {} RETURNING {}",
+        table_name, update_value_placeholders, pk_placeholder, table_columns
+    );
+
     Ok(quote! {
         #struct_visibility trait #save_trait_ident {
             async fn save(&self, pool: &#db_pool_type) -> lorm::errors::Result<#struct_name>;
@@ -92,8 +101,7 @@ pub fn generate_save(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Resul
                     true => {
                         #pk_code
                         #created_at_code
-                        let sql = format!("INSERT INTO {} ({}) VALUES ({}) RETURNING {}", #table_name, #insert_columns, #insert_value_placeholders, #table_columns);
-                        let r = sqlx::query_as::<_, #struct_name>(&sql)
+                        let r = sqlx::query_as::<_, #struct_name>(#insert_sql_ident)
                         #(
                             .bind(&to_save.#insert_values)
                         )*
@@ -101,8 +109,7 @@ pub fn generate_save(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Resul
                         Ok(r)
                     },
                     false => {
-                        let sql = format!("UPDATE {} SET {} WHERE {} RETURNING {}", #table_name, #update_value_placeholders, #pk_placeholder, #table_columns);
-                        let r = sqlx::query_as::<_, #struct_name>(&sql)
+                        let r = sqlx::query_as::<_, #struct_name>(#update_sql_ident)
                         #(
                             .bind(&self.#update_values)
                         )*

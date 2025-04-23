@@ -3,8 +3,8 @@ use crate::models::OrmModel;
 use crate::util::get_type_as_reference;
 use quote::{__private::TokenStream, format_ident, quote};
 
-pub fn generate_by(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
-    let trait_ident = format_ident!("{}ByTrait", model.struct_name);
+pub fn generate_with(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
+    let trait_ident = format_ident!("{}WithTrait", model.struct_name);
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
     let table_name = &model.table_name;
@@ -14,18 +14,18 @@ pub fn generate_by(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Result<
         let field_ident = field.ident.as_ref().unwrap();
         let field_type = get_type_as_reference(&field.ty).unwrap();
         let field_name = get_field_name(field);
-        let by_fn = format_ident!("by_{}",field_ident);
+        let with_fn = format_ident!("with_{}",field_ident);
         let placeholder = db_placeholder(field, 1).unwrap();
-        let sql_ident = format!("SELECT {} FROM {} WHERE {} = {}", table_columns, table_name, field_name, placeholder);
         let trait_code = quote! {
-            async fn #by_fn(pool: &#db_pool_type, value: #field_type) -> lorm::errors::Result<#struct_name>;
+            async fn #with_fn(pool: &#db_pool_type, value: #field_type) -> lorm::errors::Result<Vec<#struct_name>>;
         };
+        let sql_ident = format!("SELECT {} FROM {} WHERE {} = {}", table_columns, table_name, field_name, placeholder);
 
         let impl_code = quote! {
-            async fn #by_fn(pool: &#db_pool_type, value: #field_type) -> lorm::errors::Result<#struct_name> {
-                let r = sqlx::query_as::<_, #struct_name>(#sql_ident)
+            async fn #with_fn(pool: &#db_pool_type, value: #field_type) -> lorm::errors::Result<Vec<#struct_name>> {
+                let r = sqlx::query_as::<_, Self>(#sql_ident)
                     .bind(value)
-                    .fetch_one(pool).await?;
+                    .fetch_all(pool).await?;
                 Ok(r)
             }
         };
