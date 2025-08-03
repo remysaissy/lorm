@@ -12,6 +12,26 @@ You can install lorm by adding the lorm dependency to your Cargo file.
 It all starts by adding the `#[derive(ToLOrm)]` to a structure with SQLx's `#[derive(FromRow)]`.
 This will instrument the structure by generating traits and methods according to your needs.
 
+It is then possible to call lorm generated methods using a database connection, whether it comes from
+a Pool or a Transaction.
+For eg.
+```rust
+let mut conn = pool.acquire().await.unwrap();
+    _test(&mut *conn).await;
+
+    // Recreate a DB or the second test fails as existing users conflict.
+    let pool = get_pool().await.expect("Failed to create pool");
+    let mut tx = pool.begin().await.unwrap();
+    _test(&mut *tx).await;
+    tx.commit().await.unwrap();
+
+    async fn _test(conn: &mut SqliteConnection) {
+        let id = Uuid::new_v4();
+        User::by_id(&mut *conn, &id).await;
+    }
+```
+Check out the lorm/tests directory for more examples.
+
 ### Supported attributes
 
 **Primary key**

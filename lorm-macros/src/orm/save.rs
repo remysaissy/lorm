@@ -6,7 +6,7 @@ use crate::models::OrmModel;
 use quote::{__private::TokenStream, format_ident, quote};
 use syn::Ident;
 
-pub fn generate_save(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
+pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let save_trait_ident = format_ident!("{}SaveTrait", model.struct_name);
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
@@ -89,12 +89,14 @@ pub fn generate_save(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Resul
     );
 
     Ok(quote! {
-        #struct_visibility trait #save_trait_ident {
-            async fn save(&self, pool: &#db_pool_type) -> lorm::errors::Result<#struct_name>;
+        #struct_visibility trait #save_trait_ident<'e, E: #executor_type>: Sized {
+            async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>;
         }
 
-        impl #save_trait_ident for #struct_name {
-            async fn save(&self, pool: &#db_pool_type) -> lorm::errors::Result<#struct_name> {
+        impl<'e, E: #executor_type> #save_trait_ident<'e, E> for #struct_name
+        {
+            async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>
+            {
                 let mut to_save = self.clone();
                 #updated_at_code
                 match to_save.#pk_is_default_method {
@@ -105,7 +107,7 @@ pub fn generate_save(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Resul
                         #(
                             .bind(&to_save.#insert_values)
                         )*
-                        .fetch_one(pool).await?;
+                        .fetch_one(executor).await?;
                         Ok(r)
                     },
                     false => {
@@ -114,7 +116,7 @@ pub fn generate_save(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Resul
                             .bind(&self.#update_values)
                         )*
                         .bind(&self.#pk_column)
-                        .fetch_one(pool).await?;
+                        .fetch_one(executor).await?;
                         Ok(r)
                     }
                 }
