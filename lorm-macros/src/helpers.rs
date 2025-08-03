@@ -131,13 +131,16 @@ pub(crate) fn db_placeholder(field: &Field, index: usize) -> syn::Result<String>
 }
 
 /// Emits the pool type
-pub(crate) fn db_pool_type(input: &DeriveInput) -> syn::Result<TokenStream> {
+pub(crate) fn executor_type(input: &DeriveInput) -> syn::Result<TokenStream> {
     if cfg!(feature = "postgres") {
-        Ok(quote!(sqlx::PgPool))
+        Ok(quote!(sqlx::PgExecutor<'e>))
+        // Ok(quote!(sqlx::PgPool))
     } else if cfg!(feature = "sqlite") {
-        Ok(quote!(sqlx::SqlitePool))
+        Ok(quote!(sqlx::SqliteExecutor<'e>))
+        // Ok(quote!(sqlx::SqlitePool))
     } else if cfg!(feature = "mysql") {
-        Ok(quote!(sqlx::MysqlPool))
+        Ok(quote!(sqlx::MysqlExecutor<'e>))
+        // Ok(quote!(sqlx::MysqlPool))
     } else {
         Err(syn::Error::new(
             input.span(),

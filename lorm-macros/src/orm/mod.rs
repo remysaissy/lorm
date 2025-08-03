@@ -52,13 +52,13 @@ pub fn expand_derive_to_orm_struct(
     fields: &Punctuated<Field, Comma>,
 ) -> syn::Result<TokenStream> {
     let model = OrmModel::from_fields(input, fields)?;
-    let db_pool_type = db_pool_type(input)?;
+    let executor_type = executor_type(input)?;
 
-    let with_code = with::generate_with(&db_pool_type, &model)?;
-    let by_code = by::generate_by(&db_pool_type, &model)?;
-    let select_code = select::generate_select(&db_pool_type, &model)?;
-    let delete_code = delete::generate_delete(&db_pool_type, &model)?;
-    let save_code = save::generate_save(&db_pool_type, &model)?;
+    let with_code = with::generate_with(&executor_type, &model)?;
+    let by_code = by::generate_by(&executor_type, &model)?;
+    let select_code = select::generate_select(&executor_type, &model)?;
+    let delete_code = delete::generate_delete(&executor_type, &model)?;
+    let save_code = save::generate_save(&executor_type, &model)?;
 
     Ok(TokenStream::from(quote! {
         #with_code

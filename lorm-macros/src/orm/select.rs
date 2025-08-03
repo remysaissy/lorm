@@ -3,7 +3,7 @@ use crate::models::OrmModel;
 use crate::util::get_type_as_reference;
 use quote::{__private::TokenStream, format_ident, quote};
 
-pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
+pub fn generate_select(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let trait_ident = format_ident!("{}SelectTrait", model.struct_name);
     let builder_struct_ident = format_ident!("{}SelectBuilder", model.struct_name);
     let struct_name = model.struct_name;
@@ -116,7 +116,7 @@ pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Res
 
             #(#impl_tokens)*
 
-            #struct_visibility async fn build(self, pool: &#db_pool_type) -> lorm::errors::Result<Vec<#struct_name>> {
+            #struct_visibility async fn build<'e, E: #executor_type>(self, executor: E) -> lorm::errors::Result<Vec<#struct_name>> {
                 let where_stmt = match self.where_stmt.is_empty() {
                     true => "".to_string(),
                     false => format!("WHERE {}", self.where_stmt.join(" AND ")),
@@ -143,7 +143,7 @@ pub fn generate_select(db_pool_type: &TokenStream, model: &OrmModel) -> syn::Res
                     #table_columns, from, where_stmt, group_by_stmt, order_by_stmt, limit, offset
                 );
                 let sql = sql.trim();
-                let r = sqlx::query_as::<_, #struct_name>(sql).fetch_all(pool).await?;
+                let r = sqlx::query_as::<_, #struct_name>(sql).fetch_all(executor).await?;
                 Ok(r)
             }
         }
