@@ -1,10 +1,9 @@
 use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
 
-mod helpers;
 mod models;
 mod orm;
-mod util;
+mod utils;
 
 /// `#[derive(ToLOrm)]`
 /// generate methods for Object Relational Mapping.

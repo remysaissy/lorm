@@ -1,6 +1,5 @@
-use crate::helpers::get_field_name;
 use crate::models::OrmModel;
-use crate::util::get_type_as_reference;
+use crate::utils::{get_field_name, get_type_as_reference};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_select(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {

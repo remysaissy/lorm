@@ -1,5 +1,5 @@
-use crate::helpers::{db_placeholder, get_field_name};
 use crate::models::OrmModel;
+use crate::utils::{db_placeholder, get_field_name};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
