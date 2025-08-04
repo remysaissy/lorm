@@ -1,8 +1,8 @@
-use crate::helpers::{
+use crate::models::OrmModel;
+use crate::utils::{
     create_insert_placeholders, create_update_placeholders, db_placeholder, get_field_name,
     get_is_set, get_new_method,
 };
-use crate::models::OrmModel;
 use quote::{__private::TokenStream, format_ident, quote};
 use syn::Ident;
 

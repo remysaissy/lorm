@@ -102,7 +102,7 @@ async fn test_user_does_not_exists() {
         assert_eq!(res.is_err(), true);
 
         let id = Uuid::new_v4();
-        let res = User::by_id(&mut *conn, &id).await;
+        let res = User::by_id(&mut *conn, id).await;
         assert_eq!(res.is_err(), true);
     }
 }

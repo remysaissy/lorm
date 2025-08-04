@@ -1,4 +1,4 @@
-use crate::helpers::{
+use crate::utils::{
     get_field_name, get_table_name, is_by, is_created_at, is_pk, is_readonly, is_transient,
     is_updated_at,
 };
