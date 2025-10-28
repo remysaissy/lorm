@@ -121,7 +121,7 @@ update_changelog() {
 
     print_info "Generating CHANGELOG.md using git-cliff..."
 
-    if git-cliff --tag "v$new_version" -o CHANGELOG.md; then
+    if git-cliff --unreleased --tag "v$new_version" -o CHANGELOG.md; then
         print_info "CHANGELOG.md updated successfully"
     else
         print_error "Failed to generate CHANGELOG.md"
