@@ -68,56 +68,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Lorm works seamlessly with both `Pool` and `Transaction` connections. Check the [tests directory](lorm/tests/main.rs) for more examples.
 
-### Supported attributes
+### Attribute Reference
 
-**Primary key**
-Add the `#[lorm(pk)]` annotation to the primary key field of your structure.
-- the field is marked as being the primary key and can only be generated at insertion time
-- this field is also automatically considered as a `#[lorm(by)]` field.
-- If `#[lorm(new)]` is specified, it will use its struct method to generate a new pk at insertion time
-- If `#[lorm(is_set)]` is specified, it will use its instance method against `self` to check if the pk is set. Otherwise it compares the pk value with its <struct>::default() (assuming the Default trait is set)
-- If `#[lorm(readonly)]` is specified, it will ignore is_set `#[lorm(new)]` and `#[lorm(is_set)]` and let the database handles the field 
+Lorm provides several attributes to customize code generation. Attributes can be applied at struct level or field level.
 
-**Field of table renaming**
-Add the `#[lorm(rename="name")]` annotation
- - at struct level to rename at table name
- - at field level to rename at column name
-By default, a table name is the struct name pluralized and converted to table case: UserDetail => user_details.
-By default, a field name is converted to snake_case: UserDetail => user_detail.
+#### Field-Level Attributes
 
-**Field to be ignored for persistence**
-Add the `#[lorm(transient)]` annotation to ignore the field for all lorm methods.
-It is recommended to use `#[lorm(transient)]` and `#[sqlx(skip)]` together as transient does not forcibly insert the sqlx skip annotation.
+| Attribute | Description | Example | Generated Methods |
+|-----------|-------------|---------|-------------------|
+| `#[lorm(pk)]` | Marks field as primary key. Automatically includes `by` functionality. Can only be set at creation time unless combined with `readonly`. | `#[lorm(pk)]`<br>`pub id: Uuid` | `by_id()`, `delete()`, `save()` |
+| `#[lorm(by)]` | Generates query and utility methods for this field | `#[lorm(by)]`<br>`pub email: String` | `by_<field>()`, `with_<field>()`, `delete_by_<field>()`, `order_by_<field>()`, `group_by_<field>()` |
+| `#[lorm(readonly)]` | Field cannot be updated by application code. Database handles the value. | `#[lorm(readonly)]`<br>`pub count: i32` | Excluded from UPDATE queries |
+| `#[lorm(transient)]` | Field is ignored for all persistence operations. Use with `#[sqlx(skip)]` | `#[lorm(transient)]`<br>`#[sqlx(skip)]`<br>`pub tmp: String` | Excluded from all queries |
+| `#[lorm(created_at)]` | Marks field as creation timestamp | `#[lorm(created_at)]`<br>`pub created_at: DateTime` | Auto-set on INSERT |
+| `#[lorm(updated_at)]` | Marks field as update timestamp | `#[lorm(updated_at)]`<br>`pub updated_at: DateTime` | Auto-set on INSERT and UPDATE |
+| `#[lorm(new="expr")]` | Custom expression to generate field value | `#[lorm(new="Uuid::new_v4()")]` | Used in INSERT queries |
+| `#[lorm(is_set="fn()")]` | Custom function to check if field has a value | `#[lorm(is_set="is_nil()")]` | Used to determine INSERT vs UPDATE |
+| `#[lorm(rename="name")]` | Renames field to specific column name | `#[lorm(rename="user_email")]` | Uses custom column name |
 
-**Field that can't be modified under any condition**
-Add the `#[lorm(readonly)]` annotation to indicate a field is provided but never updated by your code.
-Special cases to consider:
- - If applied to the primary key, key generation is left to the database. No update possible as it is the primary key
- - If applied to create_at or updated_at field, timestamp generation is left to the database. No update is possible
+#### Struct-Level Attributes
 
-**CRUD operation using a specific field**
-Add the `#[lorm(by)]` annotation to generate with_<field>, by_<field>, delete_by_<field> and select with order_by_<field>, group_by_<field>, limit and offset methods.
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `#[lorm(rename="name")]` | Sets custom table name | `#[lorm(rename="app_users")]`<br>`struct User` |
 
-**created_at support**
-Add the `#[lorm(created_at)]` annotation to mark the field as the `created_at` field. 
-- If `#[lorm(new)]` is specified, it will use its method to update the time upon insertion
-- If `#[lorm(readonly)]` is specified, it will ignore is_set `#[lorm(new)]` and let the database handles the field
+#### Naming Conventions
 
-**updated_at support**
-Add the `#[lorm(updated_at)]` annotation to mark the field as the `updated_at` field.
-- If `#[lorm(new)]` is specified, it will use its method to update the time upon insertion and update
-- If `#[lorm(readonly)]` is specified, it will ignore is_set `#[lorm(new)]` and let the database handles the field
+- **Table names**: Struct name pluralized and converted to snake_case
+  - `User` → `users`
+  - `UserDetail` → `user_details`
+- **Column names**: Field name converted to snake_case
+  - `userId` → `user_id`
+  - `createdAt` → `created_at`
 
-**Custom new method**
-Add the `#[lorm(new="module::path::class::new_custom()")]` annotation to use a custom creation method.
-- The function call is expected to return an instance
-- When not provided, the type::new() method is called
+#### Attribute Combinations
 
-**Custom check**
-Add the `#[lorm(is_set="is_nil()")]` annotation to use a custom check.
-It uses a specific function call to check if the returned value if the default value.
-The function call is expected to return bool.
-Defaults to class_type::default() which assumes both the Default and PartialEq trait are implemented.
+Common attribute combinations:
+
+```rust
+// Auto-generated UUID primary key
+#[lorm(pk, new = "Uuid::new_v4()", is_set = "is_nil()")]
+pub id: Uuid
+
+// Database-generated integer primary key
+#[lorm(pk, readonly)]
+pub id: i32
+
+// Timestamp managed by application
+#[lorm(created_at, new = "chrono::Utc::now().fixed_offset()")]
+pub created_at: DateTime<FixedOffset>
+
+// Timestamp managed by database
+#[lorm(created_at, readonly)]
+pub created_at: DateTime<FixedOffset>
+```
 
 ### Select methods
 Queries are run using the Class::select() method.
