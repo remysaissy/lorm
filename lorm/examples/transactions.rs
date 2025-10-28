@@ -14,7 +14,9 @@ use uuid::Uuid;
 
 #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
 struct Account {
-    #[lorm(pk, new = "Uuid::new_v4()", is_set = "is_nil()")]
+    #[lorm(pk)]
+    #[lorm(new = "Uuid::new_v4()")]
+    #[lorm(is_set = "is_nil()")]
     pub id: Uuid,
 
     #[lorm(by)]
@@ -22,13 +24,16 @@ struct Account {
 
     pub balance: i64,
 
-    #[lorm(created_at, new = "chrono::Utc::now().fixed_offset()")]
+    #[lorm(created_at)]
+    #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub created_at: chrono::DateTime<FixedOffset>,
 
-    #[lorm(updated_at, new = "chrono::Utc::now().fixed_offset()")]
+    #[lorm(updated_at)]
+    #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub updated_at: chrono::DateTime<FixedOffset>,
 }
 
+#[allow(dead_code)]
 fn is_nil(id: &Uuid) -> bool {
     *id == Uuid::default()
 }
@@ -73,7 +78,7 @@ async fn main() -> Result<()> {
     sqlx::query(
         r#"
         CREATE TABLE accounts (
-            id BLOB PRIMARY KEY NOT NULL,
+            id TEXT PRIMARY KEY NOT NULL,
             name TEXT NOT NULL,
             balance INTEGER NOT NULL,
             created_at TEXT NOT NULL,
@@ -91,13 +96,13 @@ async fn main() -> Result<()> {
     let mut alice = Account::default();
     alice.name = "Alice".to_string();
     alice.balance = 1000;
-    alice.save(&pool).await?;
+    alice = alice.save(&pool).await?;
     println!("   Alice's account: ${}", alice.balance);
 
     let mut bob = Account::default();
     bob.name = "Bob".to_string();
     bob.balance = 500;
-    bob.save(&pool).await?;
+    bob = bob.save(&pool).await?;
     println!("   Bob's account: ${}\n", bob.balance);
 
     // Successful transfer
@@ -130,7 +135,7 @@ async fn main() -> Result<()> {
     let mut charlie = Account::default();
     charlie.name = "Charlie".to_string();
     charlie.balance = 2000;
-    charlie.save(&mut *tx).await?;
+    charlie = charlie.save(&mut *tx).await?;
     println!("   Created Charlie with balance ${}", charlie.balance);
 
     // Rollback instead of commit

@@ -15,7 +15,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
 struct Product {
-    #[lorm(pk, new = "Uuid::new_v4()", is_set = "is_nil()")]
+    #[lorm(pk)]
+    #[lorm(new = "Uuid::new_v4()")]
     pub id: Uuid,
 
     #[lorm(by)]
@@ -27,15 +28,13 @@ struct Product {
     #[lorm(by)]
     pub category: String,
 
-    #[lorm(created_at, new = "chrono::Utc::now().fixed_offset()")]
+    #[lorm(created_at)]
+    #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub created_at: chrono::DateTime<FixedOffset>,
 
-    #[lorm(updated_at, new = "chrono::Utc::now().fixed_offset()")]
+    #[lorm(updated_at)]
+    #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub updated_at: chrono::DateTime<FixedOffset>,
-}
-
-fn is_nil(id: &Uuid) -> bool {
-    *id == Uuid::default()
 }
 
 #[tokio::main]
@@ -46,7 +45,7 @@ async fn main() -> Result<()> {
     sqlx::query(
         r#"
         CREATE TABLE products (
-            id BLOB PRIMARY KEY NOT NULL,
+            id TEXT PRIMARY KEY NOT NULL,
             name TEXT NOT NULL,
             price INTEGER NOT NULL,
             category TEXT NOT NULL,
@@ -104,15 +103,14 @@ async fn main() -> Result<()> {
     }
     println!();
 
-    // Example 3: Complex filtering
-    println!("3. Electronics under $100:");
-    let affordable_electronics = Product::select()
-        .where_equal_category("Electronics")
+    // Example 3: Price filtering
+    println!("3. Products under $100:");
+    let affordable = Product::select()
         .where_less_price(100)
         .order_by_price(OrderBy::Desc)
         .build(&pool)
         .await?;
-    for p in &affordable_electronics {
+    for p in &affordable {
         println!("   - {} (${}/100)", p.name, p.price);
     }
     println!();
@@ -141,16 +139,15 @@ async fn main() -> Result<()> {
     }
     println!();
 
-    // Example 5: Multiple conditions
-    println!("6. Expensive Furniture (price > $100):");
-    let expensive_furniture = Product::select()
-        .where_equal_category("Furniture")
+    // Example 5: Price filtering with ordering
+    println!("6. Expensive items (price > $100):");
+    let expensive = Product::select()
         .where_more_price(100)
         .order_by_price(OrderBy::Desc)
         .build(&pool)
         .await?;
-    for p in &expensive_furniture {
-        println!("   - {} (${}/100)", p.name, p.price);
+    for p in &expensive {
+        println!("   - {} - {} (${}/100)", p.category, p.name, p.price);
     }
 
     Ok(())
