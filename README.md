@@ -1,6 +1,17 @@
 # Lorm - A light ORM for SQLx
 
-Lorm is an async and lightweight ORM for SQLx.
+Lorm is an async and lightweight ORM for SQLx that uses derive macros to generate type-safe database operations at compile time.
+
+## Features
+
+- **Zero-cost abstractions** - All code is generated at compile time
+- **Type-safe queries** - Leverages Rust's type system for compile-time query validation
+- **Async-first** - Built on tokio and async/await
+- **Automatic CRUD** - Generate create, read, update, and delete operations
+- **Flexible querying** - Builder pattern for complex queries with filtering, ordering, and pagination
+- **Pool and Transaction support** - Works seamlessly with both connection pools and transactions
+- **Timestamp management** - Automatic handling of `created_at` and `updated_at` fields
+- **Custom field generation** - Support for UUID, custom types, and database-generated values
 
 ## Quickstart
 
@@ -149,7 +160,42 @@ This method returns a builder to configure the select.
 - group_by_{field}()
 
 ### Examples
-Usage examples are documented in the test cases. Please refer to `lorm/tests/main.rs` for a concrete example of how to use each feature.  
+Usage examples are documented in the test cases. Please refer to `lorm/tests/main.rs` for a concrete example of how to use each feature.
+
+## Design Philosophy
+
+Lorm is designed to be:
+- **Lightweight** - Minimal runtime overhead with compile-time code generation
+- **Pragmatic** - Cover 80% of common use cases without complexity
+- **Composable** - Works alongside raw SQLx queries when needed
+- **Transparent** - Generated code can be inspected with `cargo expand`
+
+## Requirements
+
+- **Rust Edition**: 2024 or later
+- **SQLx**: 0.8 or later
+- **Tokio**: 1.0 or later (for async runtime)
+
+## Limitations
+
+- No automatic schema migrations (use SQLx migrations or other tools)
+- No relationships/joins (use SQLx for complex queries)
+- Requires `Default` trait on structs for most operations
+- Primary key field name detection is attribute-based, not convention-based
+
+## When to Use Lorm
+
+**Use Lorm when:**
+- You need simple CRUD operations
+- You want type safety with minimal boilerplate
+- You're building on top of SQLx
+- You want explicit control over your database schema
+
+**Consider alternatives when:**
+- You need complex relationships and joins
+- You want automatic schema migrations
+- You need an Active Record pattern
+- You require ORM-managed relationships
 
 ## License
 Licensed under Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE) or http://www.apache.org/licenses/LICENSE-2.0)
