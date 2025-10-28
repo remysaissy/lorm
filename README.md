@@ -229,15 +229,15 @@ User::delete_by_email(&pool, "alice@example.com").await?;
 
 ### Examples
 
-Complete, runnable examples are available in the [`examples/`](examples/) directory:
+Complete, runnable examples are available in the [`lorm/examples/`](lorm/examples/) directory:
 
-- **[basic_crud.rs](examples/basic_crud.rs)** - Create, read, update, and delete operations
-- **[query_builder.rs](examples/query_builder.rs)** - Advanced querying with filtering, ordering, and pagination
-- **[transactions.rs](examples/transactions.rs)** - Transaction handling and atomic operations
+- **[basic_crud.rs](lorm/examples/basic_crud.rs)** - Create, read, update, and delete operations
+- **[query_builder.rs](lorm/examples/query_builder.rs)** - Advanced querying with filtering, ordering, and pagination
+- **[transactions.rs](lorm/examples/transactions.rs)** - Transaction handling and atomic operations
 
 Run an example with:
 ```bash
-cargo run --example basic_crud
+cargo run --example basic_crud -p lorm
 ```
 
 Additional examples are documented in the test cases at `lorm/tests/main.rs`.
