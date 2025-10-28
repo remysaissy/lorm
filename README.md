@@ -5,7 +5,18 @@ Lorm is an async and lightweight ORM for SQLx.
 ## Quickstart
 
 ### Installation
-You can install lorm by adding the lorm dependency to your Cargo file.
+Add Lorm to your `Cargo.toml`:
+
+```toml
+[dependencies]
+lorm = "0.0.9"
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+```
+
+**Note**: Replace `sqlite` with your preferred database driver (`postgres`, `mysql`, `mssql`).
 
 ### Usage
 
