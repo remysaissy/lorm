@@ -4,14 +4,26 @@ This directory contains runnable examples demonstrating various Lorm features.
 
 ## Running Examples
 
-To run an example:
+From the workspace root:
 
 ```bash
+cargo run --example <example_name> -p lorm
+```
+
+Or from the `lorm/` directory:
+
+```bash
+cd lorm
 cargo run --example <example_name>
 ```
 
 For instance:
 ```bash
+# From workspace root
+cargo run --example basic_crud -p lorm
+
+# Or from lorm/ directory
+cd lorm
 cargo run --example basic_crud
 ```
 
@@ -25,7 +37,7 @@ Demonstrates fundamental CRUD operations:
 - Deleting records
 
 ```bash
-cargo run --example basic_crud
+cargo run --example basic_crud -p lorm
 ```
 
 ### query_builder.rs
@@ -36,7 +48,7 @@ Shows the query builder API:
 - Combining multiple conditions
 
 ```bash
-cargo run --example query_builder
+cargo run --example query_builder -p lorm
 ```
 
 ### transactions.rs
@@ -47,7 +59,7 @@ Illustrates transaction handling:
 - Commit successful transactions
 
 ```bash
-cargo run --example transactions
+cargo run --example transactions -p lorm
 ```
 
 ## Requirements
