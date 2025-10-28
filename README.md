@@ -27,16 +27,15 @@ uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 ```
 
-**Note**: Replace `sqlite` with your preferred database driver (`postgres`, `mysql`, `mssql`).
+**Note**: Replace `sqlite` with your preferred database driver (`postgres`, `mysql`).
 
 ### Supported Databases
 
-Lorm supports all databases that SQLx supports:
+Lorm supports almost all databases that SQLx supports:
 
 - **PostgreSQL** - Use `features = ["postgres"]` in sqlx
 - **MySQL / MariaDB** - Use `features = ["mysql"]` in sqlx
 - **SQLite** - Use `features = ["sqlite"]` in sqlx
-- **Microsoft SQL Server** - Use `features = ["mssql"]` in sqlx
 
 All features work consistently across database backends.
 
@@ -242,6 +241,85 @@ cargo run --example basic_crud
 ```
 
 Additional examples are documented in the test cases at `lorm/tests/main.rs`.
+
+## FAQ
+
+### How does Lorm differ from Diesel?
+
+Lorm is significantly lighter and simpler than Diesel:
+- **Lorm**: Focused on CRUD operations with SQLx integration, minimal features
+- **Diesel**: Full-featured ORM with query builder, migrations, and advanced relationship handling
+
+Choose Lorm for simple CRUD with SQLx, choose Diesel for comprehensive ORM features.
+
+### How does Lorm compare to SeaORM?
+
+- **Lorm**: Lightweight macro-based code generation, no runtime overhead, limited to CRUD
+- **SeaORM**: Full async ORM with entities, relations, migrations, and active record pattern
+
+Lorm is better for simple use cases; SeaORM is better for complex applications with relationships.
+
+### Can I use raw SQL with Lorm?
+
+Yes! Lorm is built on SQLx, so you can mix Lorm-generated methods with raw SQLx queries:
+
+```rust
+// Use Lorm for simple operations
+let user = User::by_email(&pool, "alice@example.com").await?;
+
+// Use SQLx for complex queries
+let results = sqlx::query_as::<_, User>(
+    "SELECT * FROM users WHERE created_at > ? AND status = ?"
+)
+.bind(yesterday)
+.bind("active")
+.fetch_all(&pool)
+.await?;
+```
+
+### Does Lorm support relationships/joins?
+
+No. Lorm focuses on single-table CRUD operations. For relationships and joins, use SQLx directly.
+
+### How do I handle migrations?
+
+Lorm doesn't provide migrations. Use:
+- **SQLx migrations**: Built-in support with `sqlx migrate`
+- **Refinery**: Alternative migration tool
+- **Custom scripts**: SQL files or custom tooling
+
+### What's the compile-time impact?
+
+Lorm uses proc macros which add to compile time, but the impact is minimal for small to medium projects. The generated code is optimized and adds no runtime overhead.
+
+### Can I inspect the generated code?
+
+Yes! Use `cargo expand` to see exactly what code Lorm generates:
+
+```bash
+cargo install cargo-expand
+cargo expand --test main
+```
+
+### Does Lorm work with connection pools?
+
+Yes! Lorm works seamlessly with both:
+- SQLx connection pools (`Pool`)
+- Transactions (`Transaction`)
+
+The same methods work with both.
+
+### How do I handle composite primary keys?
+
+Lorm currently supports single-field primary keys only. For composite keys, use SQLx directly.
+
+### Can I customize the SQL queries Lorm generates?
+
+No. Lorm generates standard CRUD operations. For custom queries, use SQLx alongside Lorm.
+
+### Is Lorm production-ready?
+
+Lorm is in early development (0.0.x versions). The API may change. Use with caution in production and pin your version.
 
 ## Design Philosophy
 
