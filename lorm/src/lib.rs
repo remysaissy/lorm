@@ -28,20 +28,28 @@
 //!     pub updated_at: chrono::DateTime<FixedOffset>,
 //! }
 //!
-//!  fn main() -> anyhow::Result<()> {
+//! #[tokio::main]
+//! async fn main() -> anyhow::Result<()> {
 //!     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
 //!     let pool = SqlitePool::connect(&database_url).await?;
+//!
+//!     // Create users
 //!     for i in 0..10 {
-//!        let mut u = User::default();
-//!        u.email = format!("alice.dupont@domain-{i}.com").to_string();
-//!        let _ = u.save(&pool).await?;
-//!      }
-//!     let users = User::query()
-//!                 .order_by_email(OrderBy::Desc)
-//!                 .limit(2)
-//!                 .offset(2)
-//!                 .build(&pool)
-//!                 .await?;
+//!         let mut u = AltUser::default();
+//!         u.email = format!("user{}@example.com", i);
+//!         u.save(&pool).await?;
+//!     }
+//!
+//!     // Query with pagination
+//!     let users = AltUser::select()
+//!         .order_by_email(OrderBy::Desc)
+//!         .limit(2)
+//!         .offset(2)
+//!         .build(&pool)
+//!         .await?;
+//!
+//!     println!("Found {} users", users.len());
+//!     Ok(())
 //! }
 //! ```
 
