@@ -65,7 +65,10 @@ async fn main() -> Result<()> {
     // READ
     println!("2. Reading user by ID...");
     let found_user = User::by_id(&pool, user.id).await?;
-    println!("   Found user: {} ({})\n", found_user.name, found_user.email);
+    println!(
+        "   Found user: {} ({})\n",
+        found_user.name, found_user.email
+    );
 
     // UPDATE
     println!("3. Updating user...");

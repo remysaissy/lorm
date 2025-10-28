@@ -8,8 +8,8 @@
 
 use anyhow::Result;
 use chrono::FixedOffset;
-use lorm::predicates::OrderBy;
 use lorm::ToLOrm;
+use lorm::predicates::OrderBy;
 use sqlx::{FromRow, SqlitePool};
 use uuid::Uuid;
 
