@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/lorm-macros/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/lorm/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/lorm/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/lorm/examples" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
