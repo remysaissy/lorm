@@ -20,28 +20,53 @@ chrono = "0.4"
 
 ### Usage
 
-It all starts by adding the `#[derive(ToLOrm)]` to a structure with SQLx's `#[derive(FromRow)]`.
-This will instrument the structure by generating traits and methods according to your needs.
+Define your model by adding `#[derive(ToLOrm)]` alongside SQLx's `#[derive(FromRow)]`:
 
-It is then possible to call lorm generated methods using a database connection, whether it comes from
-a Pool or a Transaction.
-For eg.
 ```rust
-let mut conn = pool.acquire().await.unwrap();
-    _test(&mut *conn).await;
+use sqlx::{FromRow, SqlitePool};
+use lorm::ToLOrm;
+use uuid::Uuid;
 
-    // Recreate a DB or the second test fails as existing users conflict.
-    let pool = get_pool().await.expect("Failed to create pool");
-    let mut tx = pool.begin().await.unwrap();
-    _test(&mut *tx).await;
-    tx.commit().await.unwrap();
+#[derive(Debug, Default, FromRow, ToLOrm)]
+struct User {
+    #[lorm(pk, new = "Uuid::new_v4()")]
+    pub id: Uuid,
 
-    async fn _test(conn: &mut SqliteConnection) {
-        let id = Uuid::new_v4();
-        User::by_id(&mut *conn, &id).await;
-    }
+    #[lorm(by)]
+    pub email: String,
+
+    #[lorm(created_at, new = "chrono::Utc::now().fixed_offset()")]
+    pub created_at: chrono::DateTime<chrono::FixedOffset>,
+
+    #[lorm(updated_at, new = "chrono::Utc::now().fixed_offset()")]
+    pub updated_at: chrono::DateTime<chrono::FixedOffset>,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let pool = SqlitePool::connect("sqlite::memory:").await?;
+
+    // Create a user
+    let mut user = User::default();
+    user.email = "alice@example.com".to_string();
+    user.save(&pool).await?;
+
+    // Find by email (generated from #[lorm(by)])
+    let found = User::by_email(&pool, "alice@example.com").await?;
+    println!("Found user: {}", found.email);
+
+    // Update the user
+    user.email = "alice.updated@example.com".to_string();
+    user.save(&pool).await?;
+
+    // Delete the user
+    user.delete(&pool).await?;
+
+    Ok(())
+}
 ```
-Check out the lorm/tests directory for more examples.
+
+Lorm works seamlessly with both `Pool` and `Transaction` connections. Check the [tests directory](lorm/tests/main.rs) for more examples.
 
 ### Supported attributes
 
