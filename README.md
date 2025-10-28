@@ -18,6 +18,17 @@ chrono = "0.4"
 
 **Note**: Replace `sqlite` with your preferred database driver (`postgres`, `mysql`, `mssql`).
 
+### Supported Databases
+
+Lorm supports all databases that SQLx supports:
+
+- **PostgreSQL** - Use `features = ["postgres"]` in sqlx
+- **MySQL / MariaDB** - Use `features = ["mysql"]` in sqlx
+- **SQLite** - Use `features = ["sqlite"]` in sqlx
+- **Microsoft SQL Server** - Use `features = ["mssql"]` in sqlx
+
+All features work consistently across database backends.
+
 ### Usage
 
 Define your model by adding `#[derive(ToLOrm)]` alongside SQLx's `#[derive(FromRow)]`:
