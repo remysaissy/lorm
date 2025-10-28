@@ -35,7 +35,93 @@ To start with, check out:
 
 Additionally, it's always good to work on improving/adding examples and documentation.
 
+## Development Setup
+
+### Prerequisites
+- Rust 1.75 or later (Edition 2024)
+- SQLite (for running tests)
+- cargo-expand (optional, for inspecting generated code): `cargo install cargo-expand`
+
+### Building the Project
+```bash
+# Clone the repository
+git clone https://github.com/remysaissy/lorm.git
+cd lorm
+
+# Build all workspace members
+cargo build
+
+# Run tests
+cargo test
+
+# Build documentation
+cargo doc --open
+```
+
+### Running Examples
+```bash
+# Run a specific example
+cargo run --example basic_crud
+
+# List all examples
+ls examples/
+```
+
+### Testing Changes
+
+Lorm has tests in the `lorm/tests` directory that cover various features:
+
+```bash
+# Run all tests
+cargo test
+
+# Run a specific test
+cargo test test_user_is_created
+
+# Run tests with output
+cargo test -- --nocapture
+```
+
+When adding new features, please add corresponding tests following the existing patterns in `lorm/tests/main.rs`.
+
+### Inspecting Generated Code
+
+To see what code Lorm generates, use `cargo-expand`:
+
+```bash
+# Install cargo-expand
+cargo install cargo-expand
+
+# Expand macros in tests
+cd lorm
+cargo expand --test main
+```
+
+This is helpful for:
+- Understanding how the macro works
+- Debugging macro issues
+- Verifying generated code correctness
+
+### Code Style
+
+- Follow standard Rust formatting: `cargo fmt`
+- Ensure code passes clippy: `cargo clippy -- -D warnings`
+- Add documentation comments for public APIs
+- Keep generated code clean and readable
+
+### Documentation
+
+When contributing:
+- Update README.md if adding user-facing features
+- Add rustdoc comments for public APIs
+- Create examples for significant features
+- Update CHANGELOG.md following [Keep a Changelog](https://keepachangelog.com/) format
+
 ## Communication
 
 If you're unsure about your contribution or simply want to ask a question about anything, you can:
 - Discuss something directly in the [Github issue](https://github.com/remysaissy/lorm/issues).
+
+## Code of Conduct
+
+Be respectful, constructive, and welcoming to all contributors.
