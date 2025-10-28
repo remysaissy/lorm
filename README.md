@@ -132,7 +132,7 @@ This method returns a builder to configure the select.
 - where_not_equal_{field}(value)
 - where_less_{field}(value)
 - where_less_equal_{field}(value)
-- where_more{field}(value)
+- where_more_{field}(value)
 - where_more_equal_{field}(value)
 - order_by_{field}(OrderBy::Asc)
 - group_by_{field}()
