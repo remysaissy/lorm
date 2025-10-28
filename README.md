@@ -145,19 +145,88 @@ pub created_at: DateTime<FixedOffset>
 pub created_at: DateTime<FixedOffset>
 ```
 
-### Select methods
-Queries are run using the Class::select() method.
-This method returns a builder to configure the select.
+### Query Builder API
 
-- where_between_{field}(value)
-- where_equal_{field}(value)
-- where_not_equal_{field}(value)
-- where_less_{field}(value)
-- where_less_equal_{field}(value)
-- where_more_{field}(value)
-- where_more_equal_{field}(value)
-- order_by_{field}(OrderBy::Asc)
-- group_by_{field}()
+Lorm generates a fluent query builder using `::select()`. The builder supports filtering, ordering, grouping, and pagination.
+
+#### Available Methods
+
+**Filtering** (available for all fields):
+- `where_equal_{field}(value)` - Exact match
+- `where_not_equal_{field}(value)` - Not equal
+- `where_less_{field}(value)` - Less than
+- `where_less_equal_{field}(value)` - Less than or equal
+- `where_more_{field}(value)` - Greater than
+- `where_more_equal_{field}(value)` - Greater than or equal
+- `where_between_{field}(start, end)` - Between two values (inclusive)
+
+**Ordering** (available for `#[lorm(by)]` fields):
+- `order_by_{field}(OrderBy::Asc)` - Ascending order
+- `order_by_{field}(OrderBy::Desc)` - Descending order
+
+**Grouping** (available for `#[lorm(by)]` fields):
+- `group_by_{field}()` - Group results by field
+
+**Pagination**:
+- `limit(n)` - Limit number of results
+- `offset(n)` - Skip first n results
+
+#### Query Examples
+
+```rust
+use lorm::predicates::OrderBy;
+
+// Simple query
+let users = User::select()
+    .where_equal_email("alice@example.com")
+    .build(&pool)
+    .await?;
+
+// Filtering and ordering
+let recent_users = User::select()
+    .where_more_equal_created_at(yesterday)
+    .order_by_created_at(OrderBy::Desc)
+    .build(&pool)
+    .await?;
+
+// Pagination
+let page_2 = User::select()
+    .order_by_email(OrderBy::Asc)
+    .limit(10)
+    .offset(10)
+    .build(&pool)
+    .await?;
+
+// Complex query combining multiple conditions
+let results = User::select()
+    .where_between_id(100, 200)
+    .where_not_equal_email("banned@example.com")
+    .order_by_created_at(OrderBy::Desc)
+    .limit(20)
+    .build(&pool)
+    .await?;
+
+// Grouping
+let grouped = User::select()
+    .group_by_email()
+    .build(&pool)
+    .await?;
+```
+
+#### Direct Field Queries
+
+For fields marked with `#[lorm(by)]`, additional convenience methods are generated:
+
+```rust
+// Find single record by field
+let user = User::by_email(&pool, "alice@example.com").await?;
+
+// Find multiple records with same field value
+let users = User::with_email(&pool, "alice@example.com").await?;
+
+// Delete by field
+User::delete_by_email(&pool, "alice@example.com").await?;
+```
 
 ### Examples
 Usage examples are documented in the test cases. Please refer to `lorm/tests/main.rs` for a concrete example of how to use each feature.
