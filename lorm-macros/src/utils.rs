@@ -3,7 +3,9 @@ use quote::{__private::TokenStream, ToTokens, quote};
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Expr, Field, LitStr, PathArguments, Type, TypeReference, parse};
 
-/// `#[name(value)]` attribute value exist or not
+/// Checks if an attribute with the given name and value exists on the field.
+///
+/// For example, checks if `#[lorm(pk)]` exists when called with `name="lorm"` and `value="pk"`.
 pub(crate) fn has_attribute_value(attrs: &[syn::Attribute], name: &str, value: &str) -> bool {
     for attr in attrs.iter() {
         if !attr.path().is_ident(name) {
@@ -23,7 +25,10 @@ pub(crate) fn has_attribute_value(attrs: &[syn::Attribute], name: &str, value: &
     false
 }
 
-/// `#[name(key="val")]` Get the value of the name attribute by key
+/// Gets the value of an attribute by its key.
+///
+/// For example, extracts `"users"` from `#[lorm(rename="users")]` when called with
+/// `name="lorm"` and `key="rename"`.
 pub(crate) fn get_attribute_by_key(
     attrs: &[syn::Attribute],
     name: &str,
@@ -49,7 +54,9 @@ pub(crate) fn get_attribute_by_key(
     val
 }
 
-/// whether a type is a primitive one.
+/// Checks whether a type is a Rust primitive type.
+///
+/// Returns `true` for types like `i32`, `u64`, `bool`, `char`, etc.
 pub(crate) fn is_primitive_type(ty: &Type) -> bool {
     if let Type::Path(type_path) = ty {
         if let Some(segment) = type_path.path.segments.last() {
@@ -80,7 +87,9 @@ pub(crate) fn is_primitive_type(ty: &Type) -> bool {
     }
 }
 
-/// returns the type without reference, stripping it from an eventual Option<>
+/// Returns the type without reference, unwrapping it from an `Option<>` if present.
+///
+/// For example, `Option<&String>` becomes `String`, and `&i32` becomes `i32`.
 pub(crate) fn get_type_without_reference(ty: &Type) -> syn::Result<Type> {
     match ty {
         Type::Path(type_path) => {
@@ -109,7 +118,10 @@ pub(crate) fn get_type_without_reference(ty: &Type) -> syn::Result<Type> {
     }
 }
 
-/// returns the type as a reference, stripping it from an eventual Option<>
+/// Returns the type as a reference, unwrapping it from an `Option<>` if present.
+///
+/// Primitive types are returned as-is, while complex types are returned as references.
+/// For example, `Option<String>` becomes `&String`, but `Option<i32>` becomes `i32`.
 pub(crate) fn get_type_as_reference(ty: &Type) -> syn::Result<Type> {
     let base_type = get_type_without_reference(ty)?;
 
@@ -125,38 +137,46 @@ pub(crate) fn get_type_as_reference(ty: &Type) -> syn::Result<Type> {
     }
 }
 
-/// transient field
+/// Checks if a field is marked as transient with `#[lorm(transient)]` or `#[sqlx(skip)]`.
+///
+/// Transient fields are excluded from database operations.
 pub(crate) fn is_transient(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "transient")
         | has_attribute_value(&field.attrs, "sqlx", "skip")
 }
 
-/// readonly field
+/// Checks if a field is marked as readonly with `#[lorm(readonly)]`.
+///
+/// Readonly fields cannot be updated or inserted manually.
 pub(crate) fn is_readonly(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "readonly")
 }
 
-/// primary key field
+/// Checks if a field is marked as the primary key with `#[lorm(pk)]`.
 pub(crate) fn is_pk(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "pk")
 }
 
-/// by field
+/// Checks if a field is marked for query generation with `#[lorm(by)]`.
+///
+/// This generates helper methods like `by_<field>`, `delete_by_<field>`, etc.
 pub(crate) fn is_by(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "by")
 }
 
-/// created_at field
+/// Checks if a field is marked as the creation timestamp with `#[lorm(created_at)]`.
 pub(crate) fn is_created_at(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "created_at")
 }
 
-/// updated_at field
+/// Checks if a field is marked as the update timestamp with `#[lorm(updated_at)]`.
 pub(crate) fn is_updated_at(field: &Field) -> bool {
     has_attribute_value(&field.attrs, "lorm", "updated_at")
 }
 
-/// new_method
+/// Gets the method call to initialize a new value for a field.
+///
+/// Uses the `#[lorm(new="...")]` attribute if specified, otherwise defaults to `Type::new()`.
 pub(crate) fn get_new_method(field: &Field) -> TokenStream {
     match get_attribute_by_key(&field.attrs, "lorm", "new") {
         None => {
@@ -175,7 +195,9 @@ pub(crate) fn get_new_method(field: &Field) -> TokenStream {
     }
 }
 
-/// is_set check
+/// Gets the expression to check if a field is set (non-default).
+///
+/// Uses the `#[lorm(is_set="...")]` attribute if specified, otherwise compares against `Type::default()`.
 pub(crate) fn get_is_set(field: &Field) -> TokenStream {
     let instance_field = field.ident.as_ref().unwrap();
     match get_attribute_by_key(&field.attrs, "lorm", "is_set") {
@@ -195,7 +217,10 @@ pub(crate) fn get_is_set(field: &Field) -> TokenStream {
     }
 }
 
-/// table_name
+/// Gets the database table name for a struct.
+///
+/// Uses the `#[lorm(rename="...")]` attribute if specified, otherwise converts the struct name
+/// to table_case and pluralizes it (e.g., `UserDetail` becomes `user_details`).
 pub(crate) fn get_table_name(input: &DeriveInput) -> String {
     let table_name = get_attribute_by_key(&input.attrs, "lorm", "rename");
     match table_name {
@@ -207,13 +232,18 @@ pub(crate) fn get_table_name(input: &DeriveInput) -> String {
     }
 }
 
-/// field_name if rename
+/// Gets the database column name for a field.
+///
+/// Uses the `#[lorm(rename="...")]` attribute if specified, otherwise converts the field name
+/// to snake_case (e.g., `userId` becomes `user_id`).
 pub fn get_field_name(field: &Field) -> String {
     get_attribute_by_key(&field.attrs, "lorm", "rename")
         .unwrap_or_else(|| field.ident.as_ref().unwrap().to_string().to_snake_case())
 }
 
-// make string "?, ?, ?" or "$1, $2, $3"
+/// Creates SQL placeholders for INSERT statements.
+///
+/// Generates database-specific placeholders: `"$1, $2, $3"` for PostgreSQL/SQLite or `"?, ?, ?"` for MySQL.
 pub(crate) fn create_insert_placeholders(fields: &[&Field]) -> String {
     fields
         .iter()
@@ -223,6 +253,10 @@ pub(crate) fn create_insert_placeholders(fields: &[&Field]) -> String {
         .join(",")
 }
 
+/// Creates SQL placeholders for UPDATE statements.
+///
+/// Generates database-specific SET clauses: `"name = $1, email = $2"` for PostgreSQL/SQLite
+/// or `"name = ?, email = ?"` for MySQL.
 pub(crate) fn create_update_placeholders(fields: &[&Field]) -> String {
     fields
         .iter()
@@ -238,6 +272,9 @@ pub(crate) fn create_update_placeholders(fields: &[&Field]) -> String {
         .join(",")
 }
 
+/// Generates a database-specific placeholder for a single field.
+///
+/// Returns `"$n"` for PostgreSQL/SQLite or `"?"` for MySQL, where n is the index.
 pub(crate) fn db_placeholder(field: &Field, index: usize) -> syn::Result<String> {
     if cfg!(feature = "postgres") || cfg!(feature = "sqlite") {
         Ok(format!("${}", index))
@@ -251,7 +288,9 @@ pub(crate) fn db_placeholder(field: &Field, index: usize) -> syn::Result<String>
     }
 }
 
-/// Emits the executor type
+/// Generates the SQLx executor type token based on the enabled database feature.
+///
+/// Returns `PgExecutor`, `SqliteExecutor`, or `MysqlExecutor` depending on which feature is enabled.
 pub(crate) fn executor_type(input: &DeriveInput) -> syn::Result<TokenStream> {
     if cfg!(feature = "postgres") {
         Ok(quote!(sqlx::PgExecutor<'e>))
@@ -267,7 +306,9 @@ pub(crate) fn executor_type(input: &DeriveInput) -> syn::Result<TokenStream> {
     }
 }
 
-/// Emits the database type
+/// Generates the SQLx database type token based on the enabled database feature.
+///
+/// Returns `Postgres`, `Sqlite`, or `Mysql` depending on which feature is enabled.
 pub(crate) fn database_type(input: &DeriveInput) -> syn::Result<TokenStream> {
     if cfg!(feature = "postgres") {
         Ok(quote!(sqlx::Postgres))
@@ -283,6 +324,7 @@ pub(crate) fn database_type(input: &DeriveInput) -> syn::Result<TokenStream> {
     }
 }
 
+/// Checks whether a type is `String` or `str`.
 fn is_string_type(ty: &Type) -> bool {
     if let Type::Path(type_path) = ty {
         if let Some(segment) = type_path.path.segments.last() {
@@ -296,6 +338,10 @@ fn is_string_type(ty: &Type) -> bool {
     }
 }
 
+/// Generates the type constraints needed for binding a field value to SQLx queries.
+///
+/// Returns different trait bounds depending on whether the field is a primitive type or complex type.
+/// For primitives, uses `Encode` and `Type` traits. For complex types, also includes `Into` or `AsRef`.
 pub(crate) fn get_bind_type_constraint(
     field: &Field,
     database_type: &TokenStream,
