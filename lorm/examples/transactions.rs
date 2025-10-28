@@ -38,12 +38,7 @@ fn is_nil(id: &Uuid) -> bool {
     *id == Uuid::default()
 }
 
-async fn transfer(
-    pool: &SqlitePool,
-    from_id: &Uuid,
-    to_id: &Uuid,
-    amount: i64,
-) -> Result<()> {
+async fn transfer(pool: &SqlitePool, from_id: &Uuid, to_id: &Uuid, amount: i64) -> Result<()> {
     // Start a transaction
     let mut tx = pool.begin().await?;
 
