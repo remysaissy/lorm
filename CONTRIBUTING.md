@@ -84,6 +84,32 @@ cargo test -- --nocapture
 
 When adding new features, please add corresponding tests following the existing patterns in `lorm/tests/main.rs`.
 
+### Code Coverage
+
+Lorm uses `cargo-llvm-cov` for code coverage reporting:
+
+```bash
+# Install cargo-llvm-cov
+cargo install cargo-llvm-cov
+
+# Generate HTML coverage report (opens in browser)
+./coverage.sh
+
+# Generate lcov report for CI
+./coverage.sh --lcov
+
+# Show coverage summary in terminal
+./coverage.sh --text
+
+# Generate all formats
+./coverage.sh --all
+
+# Clean coverage artifacts before running
+./coverage.sh --clean --html
+```
+
+Coverage reports are automatically generated in CI and uploaded to codecov.io. When contributing, aim to maintain or improve coverage for modified code.
+
 ### Inspecting Generated Code
 
 To see what code Lorm generates, use `cargo-expand`:
