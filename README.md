@@ -87,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Lorm works seamlessly with both `Pool` and `Transaction` connections. Check the [tests directory](lorm/tests/main.rs) for more examples.
+Lorm works seamlessly with both `Pool` and `Transaction` connections. Check the [tests directory](tests) for more examples.
 
 ### Attribute Reference
 
@@ -128,12 +128,8 @@ Common attribute combinations:
 
 ```rust
 // Auto-generated UUID primary key
-#[lorm(pk, new = "Uuid::new_v4()", is_set = "is_nil()")]
+#[lorm(pk, new = "Uuid::new_v4()")]
 pub id: Uuid
-
-// Database-generated integer primary key
-#[lorm(pk, readonly)]
-pub id: i32
 
 // Timestamp managed by application
 #[lorm(created_at, new = "chrono::Utc::now().fixed_offset()")]
@@ -229,18 +225,18 @@ User::delete_by_email(&pool, "alice@example.com").await?;
 
 ### Examples
 
-Complete, runnable examples are available in the [`lorm/examples/`](lorm/examples/) directory:
+Complete, runnable examples are available in the [`examples/`](examples/) directory:
 
-- **[basic_crud.rs](lorm/examples/basic_crud.rs)** - Create, read, update, and delete operations
-- **[query_builder.rs](lorm/examples/query_builder.rs)** - Advanced querying with filtering, ordering, and pagination
-- **[transactions.rs](lorm/examples/transactions.rs)** - Transaction handling and atomic operations
+- **[basic_crud.rs](examples/basic_crud.rs)** - Create, read, update, and delete operations
+- **[query_builder.rs](examples/query_builder.rs)** - Advanced querying with filtering, ordering, and pagination
+- **[transactions.rs](examples/transactions.rs)** - Transaction handling and atomic operations
 
 Run an example with:
 ```bash
 cargo run --example basic_crud -p lorm
 ```
 
-Additional examples are documented in the test cases at `lorm/tests/main.rs`.
+Additional examples are documented in the test cases at `tests/main.rs`.
 
 ## FAQ
 
@@ -319,7 +315,7 @@ No. Lorm generates standard CRUD operations. For custom queries, use SQLx alongs
 
 ### Is Lorm production-ready?
 
-Lorm is in early development (0.0.x versions). The API may change. Use with caution in production and pin your version.
+Lorm is in early development (0.x.y versions). The API may change. Use with caution in production and pin your version.
 
 ## Design Philosophy
 
