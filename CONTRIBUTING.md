@@ -104,11 +104,21 @@ cargo install cargo-llvm-cov
 # Generate all formats
 ./coverage.sh --all
 
-# Clean coverage artifacts before running
-./coverage.sh --clean --html
+# Check coverage meets thresholds (80% minimum)
+./coverage.sh --check-thresholds
+
+# Combine flags
+./coverage.sh --clean --html --check-thresholds
 ```
 
-Coverage reports are automatically generated in CI and uploaded to codecov.io. When contributing, aim to maintain or improve coverage for modified code.
+#### Coverage Requirements
+
+Lorm enforces minimum coverage thresholds in CI:
+- **Line Coverage**: ≥ 80%
+- **Region Coverage**: ≥ 80%
+- **Function Coverage**: ≥ 80%
+
+Pull requests that reduce coverage below these thresholds will fail CI. Coverage reports are automatically generated and uploaded to codecov.io. When contributing, aim to maintain or improve coverage for modified code.
 
 ### Inspecting Generated Code
 

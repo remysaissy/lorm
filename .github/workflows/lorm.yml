@@ -72,8 +72,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Generate coverage
-        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      - name: Generate coverage and check thresholds
+        run: |
+          cargo llvm-cov --workspace --lcov --output-path lcov.info \
+            --fail-under-lines 80 \
+            --fail-under-regions 80 \
+            --fail-under-functions 80
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
         with:
