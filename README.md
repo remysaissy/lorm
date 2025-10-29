@@ -100,7 +100,7 @@ Lorm provides several attributes to customize code generation. Attributes can be
 | `#[lorm(pk)]` | Marks field as primary key. Automatically includes `by` functionality. Can only be set at creation time unless combined with `readonly`. | `#[lorm(pk)]`<br>`pub id: Uuid` | `by_id()`, `delete()`, `save()` |
 | `#[lorm(by)]` | Generates query and utility methods for this field | `#[lorm(by)]`<br>`pub email: String` | `by_<field>()`, `with_<field>()`, `delete_by_<field>()`, `order_by_<field>()`, `group_by_<field>()` |
 | `#[lorm(readonly)]` | Field cannot be updated by application code. Database handles the value. | `#[lorm(readonly)]`<br>`pub count: i32` | Excluded from UPDATE queries |
-| `#[lorm(transient)]` | Field is ignored for all persistence operations. Use with `#[sqlx(skip)]` | `#[lorm(transient)]`<br>`#[sqlx(skip)]`<br>`pub tmp: String` | Excluded from all queries |
+| `#[lorm(skip)]` | Field is ignored for all persistence operations. Use with `#[sqlx(skip)]` | `#[lorm(skip)]`<br>`#[sqlx(skip)]`<br>`pub tmp: String` | Excluded from all queries |
 | `#[lorm(created_at)]` | Marks field as creation timestamp | `#[lorm(created_at)]`<br>`pub created_at: DateTime` | Auto-set on INSERT |
 | `#[lorm(updated_at)]` | Marks field as update timestamp | `#[lorm(updated_at)]`<br>`pub updated_at: DateTime` | Auto-set on INSERT and UPDATE |
 | `#[lorm(new="expr")]` | Custom expression to generate field value | `#[lorm(new="Uuid::new_v4()")]` | Used in INSERT queries |

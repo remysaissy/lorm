@@ -1,5 +1,5 @@
 use crate::utils::{
-    get_field_name, get_table_name, is_by, is_created_at, is_pk, is_readonly, is_transient,
+    get_field_name, get_table_name, is_by, is_created_at, is_pk, is_readonly, is_skip,
     is_updated_at,
 };
 use syn::punctuated::Punctuated;
@@ -42,7 +42,7 @@ impl<'a> OrmModel<'a> {
         let mut is_updated_at_readonly = false;
 
         for field in fields.iter() {
-            if !is_transient(field) {
+            if !is_skip(field) {
                 table_columns_vec.push(get_field_name(field));
                 if is_pk(field) {
                     pk_field = Some(field);
