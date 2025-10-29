@@ -137,11 +137,11 @@ pub(crate) fn get_type_as_reference(ty: &Type) -> syn::Result<Type> {
     }
 }
 
-/// Checks if a field is marked as transient with `#[lorm(transient)]` or `#[sqlx(skip)]`.
+/// Checks if a field is marked to be skipped with `#[lorm(skip)]` or `#[sqlx(skip)]`.
 ///
-/// Transient fields are excluded from database operations.
-pub(crate) fn is_transient(field: &Field) -> bool {
-    has_attribute_value(&field.attrs, "lorm", "transient")
+/// Skipped fields are excluded from database operations.
+pub(crate) fn is_skip(field: &Field) -> bool {
+    has_attribute_value(&field.attrs, "lorm", "skip")
         | has_attribute_value(&field.attrs, "sqlx", "skip")
 }
 

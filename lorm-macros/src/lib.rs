@@ -24,8 +24,8 @@ mod utils;
 ///   by default, a table name is the struct name pluralized and converted to table case: UserDetail => user_details.
 ///   by default, a field name is converted to snake_case: UserDetail => user_detail.
 ///
-/// `#[lorm(transient)]`
-///  ignore field. using sqlx::FromRow, skip need `#[lorm(transient)]` and `#[sqlx(skip)]`
+/// `#[lorm(skip)]`
+///  Ignore field for persistence operations. Using sqlx::FromRow, skip needs `#[lorm(skip)]` and `#[sqlx(skip)]`
 ///
 /// `#[lorm(readonly)]`
 ///  readonly attribute. Cannot be updated not inserted.
@@ -66,7 +66,7 @@ mod utils;
         lorm,
         // lorm(pk),
         // lorm(by),
-        // lorm(transient),
+        // lorm(skip),
         // lorm(readonly),
         // lorm(fk="module::path::class"),
         // lorm(new="module::path::class::new_custom()"),
