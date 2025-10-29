@@ -41,6 +41,8 @@ Additionally, it's always good to work on improving/adding examples and document
 - Rust 1.75 or later (Edition 2024)
 - SQLite (for running tests)
 - cargo-expand (optional, for inspecting generated code): `cargo install cargo-expand`
+- act (optional, for running CI tests locally): `brew install act` (macOS) or see [act installation](https://github.com/nektos/act)
+- Docker (required if using act)
 
 ### Building the Project
 ```bash
@@ -83,6 +85,37 @@ cargo test -- --nocapture
 ```
 
 When adding new features, please add corresponding tests following the existing patterns in `lorm/tests/main.rs`.
+
+### Running CI Tests Locally
+
+Before committing, you can run all GitHub Actions CI tests locally using `act`:
+
+```bash
+# Install act (one-time setup)
+brew install act  # macOS
+# or follow instructions at https://github.com/nektos/act
+
+# Ensure Docker is running
+# Then run all CI jobs
+./test.sh
+
+# Run specific jobs only
+./test.sh --format      # Run format check
+./test.sh --check       # Run clippy
+./test.sh --test        # Run unit tests
+./test.sh --examples    # Run examples
+./test.sh --coverage    # Run coverage check
+
+# List all available jobs
+./test.sh --list
+
+# Run a specific job by name
+./test.sh --job coverage
+```
+
+This allows you to catch CI failures before pushing, saving time and ensuring your PR is ready for review.
+
+**Note**: Running all jobs locally can take several minutes. Consider running specific jobs during development and run all jobs before committing.
 
 ### Code Coverage
 
