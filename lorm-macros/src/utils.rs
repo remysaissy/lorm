@@ -1,7 +1,7 @@
 use inflector::Inflector;
 use quote::{__private::TokenStream, ToTokens, quote};
 use syn::spanned::Spanned;
-use syn::{DeriveInput, Expr, Field, LitStr, PathArguments, Type, TypeReference, parse};
+use syn::{DeriveInput, Expr, Field, LitStr, PathArguments, Type, parse};
 
 /// Checks if an attribute with the given name and value exists on the field.
 ///
@@ -115,25 +115,6 @@ pub(crate) fn get_type_without_reference(ty: &Type) -> syn::Result<Type> {
             parse(ty.into_token_stream().into())
         }
         _ => parse(ty.into_token_stream().into()),
-    }
-}
-
-/// Returns the type as a reference, unwrapping it from an `Option<>` if present.
-///
-/// Primitive types are returned as-is, while complex types are returned as references.
-/// For example, `Option<String>` becomes `&String`, but `Option<i32>` becomes `i32`.
-pub(crate) fn get_type_as_reference(ty: &Type) -> syn::Result<Type> {
-    let base_type = get_type_without_reference(ty)?;
-
-    if is_primitive_type(&base_type) {
-        Ok(base_type)
-    } else {
-        Ok(Type::Reference(TypeReference {
-            and_token: Default::default(),
-            lifetime: None,
-            mutability: None,
-            elem: Box::new(base_type),
-        }))
     }
 }
 
@@ -348,13 +329,15 @@ pub(crate) fn get_bind_type_constraint(
 ) -> syn::Result<TokenStream> {
     let field_type = get_type_without_reference(&field.ty)?;
     if is_primitive_type(&field.ty) {
-        Ok(quote! { 'e + sqlx::Encode<'e, #database_type> + sqlx::Type<#database_type> })
+        Ok(quote! { 'static + sqlx::Encode<'static, #database_type> + sqlx::Type<#database_type> })
     } else {
         let as_ref = if is_string_type(&field_type) || is_primitive_type(&field_type) {
             quote! { std::convert::Into<#field_type> }
         } else {
             quote! { std::convert::AsRef<#field_type> }
         };
-        Ok(quote! { 'e + sqlx::Encode<'e, #database_type> + sqlx::Type<#database_type> + #as_ref })
+        Ok(
+            quote! { 'static + sqlx::Encode<'static, #database_type> + sqlx::Type<#database_type> + #as_ref },
+        )
     }
 }

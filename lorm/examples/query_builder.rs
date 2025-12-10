@@ -9,7 +9,7 @@
 use anyhow::Result;
 use chrono::FixedOffset;
 use lorm::ToLOrm;
-use lorm::predicates::OrderBy;
+use lorm::predicates::Where;
 use sqlx::{FromRow, SqlitePool};
 use uuid::Uuid;
 
@@ -95,7 +95,8 @@ async fn main() -> Result<()> {
     println!("2. Products between $50 and $500:");
     let mid_range = Product::select()
         .where_between_price(50, 500)
-        .order_by_price(OrderBy::Asc)
+        .order_by_price()
+        .asc()
         .build(&pool)
         .await?;
     for p in &mid_range {
@@ -106,8 +107,9 @@ async fn main() -> Result<()> {
     // Example 3: Price filtering
     println!("3. Products under $100:");
     let affordable = Product::select()
-        .where_less_price(100)
-        .order_by_price(OrderBy::Desc)
+        .where_price(Where::LesserThan, 100)
+        .order_by_price()
+        .desc()
         .build(&pool)
         .await?;
     for p in &affordable {
@@ -118,7 +120,8 @@ async fn main() -> Result<()> {
     // Example 4: Pagination
     println!("4. Products page 1 (limit 3):");
     let page1 = Product::select()
-        .order_by_name(OrderBy::Asc)
+        .order_by_name()
+        .asc()
         .limit(3)
         .build(&pool)
         .await?;
@@ -129,7 +132,8 @@ async fn main() -> Result<()> {
 
     println!("5. Products page 2 (limit 3, offset 3):");
     let page2 = Product::select()
-        .order_by_name(OrderBy::Asc)
+        .order_by_name()
+        .asc()
         .limit(3)
         .offset(3)
         .build(&pool)
@@ -142,8 +146,9 @@ async fn main() -> Result<()> {
     // Example 5: Price filtering with ordering
     println!("6. Expensive items (price > $100):");
     let expensive = Product::select()
-        .where_more_price(100)
-        .order_by_price(OrderBy::Desc)
+        .where_price(Where::GreaterThan, 100)
+        .order_by_price()
+        .desc()
         .build(&pool)
         .await?;
     for p in &expensive {

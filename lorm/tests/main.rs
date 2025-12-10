@@ -3,7 +3,7 @@ use chrono::FixedOffset;
 use fake::Fake;
 use fake::faker::internet::en::SafeEmail;
 use lorm::ToLOrm;
-use lorm::predicates::OrderBy;
+use lorm::predicates::Where;
 use sqlx::migrate::MigrateDatabase;
 use sqlx::{Executor, FromRow, Sqlite, SqliteConnection, SqlitePool};
 use std::thread::sleep;
@@ -98,7 +98,7 @@ async fn test_user_does_not_exists() {
 
     async fn _test(conn: &mut SqliteConnection) {
         let email = SafeEmail().fake::<String>();
-        let res = User::by_email(&mut *conn, &email).await;
+        let res = User::by_email(&mut *conn, email).await;
         assert_eq!(res.is_err(), true);
 
         let id = Uuid::new_v4();
@@ -123,13 +123,13 @@ async fn test_user_is_created() {
         u.email = email.clone();
         let u = u.save(&mut *conn).await.unwrap();
 
-        let res = User::by_id(&mut *conn, &u.id).await;
+        let res = User::by_id(&mut *conn, u.id).await;
         assert_eq!(res.is_err(), false);
 
         let u = res.unwrap();
         assert_eq!(u.created_at.to_rfc2822() == u.updated_at.to_rfc2822(), true);
 
-        let res = User::by_email(&mut *conn, &email).await;
+        let res = User::by_email(&mut *conn, email).await;
         assert_eq!(res.is_err(), false);
     }
 }
@@ -155,7 +155,7 @@ async fn test_user_is_updated() {
         let email = SafeEmail().fake::<String>();
         u.email = email.clone();
         let u = u.save(&mut *conn).await.unwrap();
-        let res = User::by_id(&mut *conn, &u.id).await;
+        let res = User::by_id(&mut *conn, u.id).await;
         assert_eq!(res.is_err(), false);
         let u = res.unwrap();
         assert_eq!(u.email, email);
@@ -178,11 +178,11 @@ async fn test_user_is_deleted() {
         u.email = SafeEmail().fake::<String>();
         let u = u.save(&mut *conn).await.unwrap();
 
-        let res = User::by_id(&mut *conn, &u.id).await;
+        let res = User::by_id(&mut *conn, u.id).await;
         assert_eq!(res.is_err(), false);
 
         u.delete(&mut *conn).await.unwrap();
-        let res = User::by_id(&mut *conn, &u.id).await;
+        let res = User::by_id(&mut *conn, u.id).await;
         assert_eq!(res.is_err(), true);
     }
 }
@@ -257,7 +257,8 @@ async fn test_offset_is_working() {
         }
 
         let res = User::select()
-            .order_by_email(OrderBy::Desc)
+            .order_by_email()
+            .desc()
             .limit(2)
             .build(&mut *conn)
             .await
@@ -268,7 +269,8 @@ async fn test_offset_is_working() {
         assert_eq!(u.email, format!("8-{email}"));
 
         let res = User::select()
-            .order_by_email(OrderBy::Desc)
+            .order_by_email()
+            .desc()
             .limit(2)
             .offset(2)
             .build(&mut *conn)
@@ -311,7 +313,8 @@ async fn test_group_by_is_working() {
         let res = User::select()
             .group_by_email()
             .group_by_id()
-            .order_by_email(OrderBy::Desc)
+            .order_by_email()
+            .desc()
             .limit(2)
             .build(&mut *conn)
             .await
@@ -324,7 +327,8 @@ async fn test_group_by_is_working() {
         let res = User::select()
             .group_by_email()
             .group_by_id()
-            .order_by_email(OrderBy::Desc)
+            .order_by_email()
+            .desc()
             .limit(2)
             .offset(2)
             .build(&mut *conn)
@@ -338,7 +342,8 @@ async fn test_group_by_is_working() {
         let res = User::select()
             .group_by_email()
             .group_by_id()
-            .order_by_email(OrderBy::Asc)
+            .order_by_email()
+            .asc()
             .limit(2)
             .offset(2)
             .build(&mut *conn)
@@ -352,7 +357,8 @@ async fn test_group_by_is_working() {
         let res = User::select()
             .group_by_email()
             .group_by_id()
-            .order_by_created_at(OrderBy::Asc)
+            .order_by_created_at()
+            .asc()
             .limit(2)
             .offset(2)
             .build(&mut *conn)
@@ -402,7 +408,7 @@ async fn test_where_is_working() {
         let u = u.save(&mut *conn).await.unwrap();
 
         let res = AltUser::select()
-            .where_equal_id(u.id)
+            .where_id(Where::Eq, u.id)
             .build(&mut *conn)
             .await
             .unwrap();
