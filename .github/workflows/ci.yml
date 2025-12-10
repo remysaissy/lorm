@@ -1,4 +1,4 @@
-name: lorm
+name: CI
 
 on:
   pull_request:
@@ -16,7 +16,8 @@ jobs:
       - run: rustup toolchain install stable --profile minimal
       - run: rustup component add rustfmt
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all -- --check
+      - name: Run format check
+        run: ./format.sh --check
 
   check:
     name: Check
@@ -27,25 +28,42 @@ jobs:
       - run: rustup toolchain install stable --profile minimal
       - run: rustup component add clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy -- -D warnings
+      - name: Run clippy check
+        run: ./check.sh --all-features
 
-  test:
-    name: Unit Tests
+  feature-matrix:
+    name: Test Feature Combinations
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          # Note: sqlite, postgres, and mysql are mutually exclusive features
+          # Only one database backend can be active at a time
+          - name: "default (sqlite)"
+            flags: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: rustup toolchain install stable --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.features.name }}
+      - name: Test with ${{ matrix.features.name }}
+        run: ./test.sh ${{ matrix.features.flags }}
+
+  coverage:
+    name: Code Coverage
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: rustup toolchain install stable --profile minimal
       - uses: Swatinem/rust-cache@v2
-      - name: Test lorm
-        run: >
-          cargo test
-          -p lorm
-
-      - name: Test lorm-macros
-        run: >
-          cargo test
-          -p lorm-macros
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Generate coverage and check thresholds
+        run: ./coverage.sh --lcov
 
   examples:
     name: Examples
@@ -61,26 +79,3 @@ jobs:
         run: cargo run --example query_builder -p lorm
       - name: Run transactions example
         run: cargo run --example transactions -p lorm
-
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: rustup toolchain install stable --profile minimal
-      - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Generate coverage and check thresholds
-        run: |
-          cargo llvm-cov --workspace --lcov --output-path lcov.info \
-            --fail-under-lines 80 \
-            --fail-under-regions 80 \
-            --fail-under-functions 80
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v4
-        with:
-          files: lcov.info
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
