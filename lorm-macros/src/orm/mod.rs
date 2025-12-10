@@ -58,7 +58,7 @@ pub fn expand_derive_to_orm_struct(
 
     let with_code = with::generate_with(&executor_type, &database_type, &model)?;
     let by_code = by::generate_by(&executor_type, &database_type, &model)?;
-    let select_code = select::generate_select(&executor_type, &model)?;
+    let select_code = select::generate_select(&executor_type, &database_type, &model)?;
     let delete_code = delete::generate_delete(&executor_type, &model)?;
     let save_code = save::generate_save(&executor_type, &model)?;
 

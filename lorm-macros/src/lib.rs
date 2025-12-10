@@ -34,12 +34,13 @@ mod utils;
 ///   - If applied to create_at or updated_at field, timestamp generation is left to the database. No update possible.
 ///
 /// `#[lorm(by)]`
-///  generate by_<field>, delete_by_<field> and select with its order_by_<field>, group_by_<field>,
-///  limit and offset methods.
-///
-/// `#[lorm(fk="module::path::class")]`
-///  Add the `#[lorm(fk="module::path::class")]` annotation to a foreign key field to generate the get_<field>() method which returns an instance of `module::path::class`.
-///  The generated method removes the trailing _id if present in the field name.
+///  Generates query methods for this field:
+///  - `by_<field>(executor, value)` - Find single record by field value
+///  - `with_<field>(executor, value)` - Find all records matching field value
+///  - `where_<field>(Where, value)` - Filter in select() query builder
+///  - `where_between_<field>(start, end)` - Range filter in select() query builder
+///  - `order_by_<field>()` - Order results by this field (chain with `.asc()` or `.desc()`)
+///  - `group_by_<field>()` - Group results by this field
 ///
 /// `#[lorm(created_at)]`
 ///  Add the `#[lorm(created_at)]` annotation to mark the field as the `created_at` field.
@@ -68,7 +69,6 @@ mod utils;
         // lorm(by),
         // lorm(skip),
         // lorm(readonly),
-        // lorm(fk="module::path::class"),
         // lorm(new="module::path::class::new_custom()"),
         // lorm(is_set="is_nil()"),
         // lorm(rename="name"),

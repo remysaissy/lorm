@@ -98,7 +98,7 @@ Lorm provides several attributes to customize code generation. Attributes can be
 | Attribute | Description | Example | Generated Methods |
 |-----------|-------------|---------|-------------------|
 | `#[lorm(pk)]` | Marks field as primary key. Automatically includes `by` functionality. Can only be set at creation time unless combined with `readonly`. | `#[lorm(pk)]`<br>`pub id: Uuid` | `by_id()`, `delete()`, `save()` |
-| `#[lorm(by)]` | Generates query and utility methods for this field | `#[lorm(by)]`<br>`pub email: String` | `by_<field>()`, `with_<field>()`, `delete_by_<field>()`, `order_by_<field>()`, `group_by_<field>()` |
+| `#[lorm(by)]` | Generates query and utility methods for this field | `#[lorm(by)]`<br>`pub email: String` | `by_<field>()`, `with_<field>()`, `where_<field>()`, `order_by_<field>()`, `group_by_<field>()` |
 | `#[lorm(readonly)]` | Field cannot be updated by application code. Database handles the value. | `#[lorm(readonly)]`<br>`pub count: i32` | Excluded from UPDATE queries |
 | `#[lorm(skip)]` | Field is ignored for all persistence operations. Use with `#[sqlx(skip)]` | `#[lorm(skip)]`<br>`#[sqlx(skip)]`<br>`pub tmp: String` | Excluded from all queries |
 | `#[lorm(created_at)]` | Marks field as creation timestamp | `#[lorm(created_at)]`<br>`pub created_at: DateTime` | Auto-set on INSERT |
@@ -146,18 +146,18 @@ Lorm generates a fluent query builder using `::select()`. The builder supports f
 
 #### Available Methods
 
-**Filtering** (available for all fields):
-- `where_equal_{field}(value)` - Exact match
-- `where_not_equal_{field}(value)` - Not equal
-- `where_less_{field}(value)` - Less than
-- `where_less_equal_{field}(value)` - Less than or equal
-- `where_more_{field}(value)` - Greater than
-- `where_more_equal_{field}(value)` - Greater than or equal
+**Filtering** (available for `#[lorm(by)]` fields):
+- `where_{field}(Where::Eq, value)` - Equals comparison
+- `where_{field}(Where::NotEq, value)` - Not equals comparison
+- `where_{field}(Where::GreaterThan, value)` - Greater than
+- `where_{field}(Where::GreaterOrEqualTo, value)` - Greater than or equal
+- `where_{field}(Where::LesserThan, value)` - Less than
+- `where_{field}(Where::LesserOrEqualTo, value)` - Less than or equal
 - `where_between_{field}(start, end)` - Between two values (inclusive)
 
 **Ordering** (available for `#[lorm(by)]` fields):
-- `order_by_{field}(OrderBy::Asc)` - Ascending order
-- `order_by_{field}(OrderBy::Desc)` - Descending order
+- `order_by_{field}().asc()` - Ascending order
+- `order_by_{field}().desc()` - Descending order
 
 **Grouping** (available for `#[lorm(by)]` fields):
 - `group_by_{field}()` - Group results by field
@@ -169,24 +169,26 @@ Lorm generates a fluent query builder using `::select()`. The builder supports f
 #### Query Examples
 
 ```rust
-use lorm::predicates::OrderBy;
+use lorm::predicates::Where;
 
-// Simple query
+// Simple query with exact match
 let users = User::select()
-    .where_equal_email("alice@example.com")
+    .where_email(Where::Eq, "alice@example.com")
     .build(&pool)
     .await?;
 
 // Filtering and ordering
 let recent_users = User::select()
-    .where_more_equal_created_at(yesterday)
-    .order_by_created_at(OrderBy::Desc)
+    .where_created_at(Where::GreaterOrEqualTo, yesterday)
+    .order_by_created_at()
+    .desc()
     .build(&pool)
     .await?;
 
 // Pagination
 let page_2 = User::select()
-    .order_by_email(OrderBy::Asc)
+    .order_by_email()
+    .asc()
     .limit(10)
     .offset(10)
     .build(&pool)
@@ -195,32 +197,36 @@ let page_2 = User::select()
 // Complex query combining multiple conditions
 let results = User::select()
     .where_between_id(100, 200)
-    .where_not_equal_email("banned@example.com")
-    .order_by_created_at(OrderBy::Desc)
+    .where_email(Where::NotEq, "banned@example.com")
+    .order_by_created_at()
+    .desc()
     .limit(20)
     .build(&pool)
     .await?;
 
-// Grouping
+// Grouping with ordering
 let grouped = User::select()
     .group_by_email()
+    .group_by_id()
+    .order_by_email()
+    .asc()
     .build(&pool)
     .await?;
 ```
 
 #### Direct Field Queries
 
-For fields marked with `#[lorm(by)]`, additional convenience methods are generated:
+For fields marked with `#[lorm(by)]`, convenience methods are generated:
 
 ```rust
-// Find single record by field
+// Find single record by field (returns first match)
 let user = User::by_email(&pool, "alice@example.com").await?;
 
-// Find multiple records with same field value
+// Find all records matching field value
 let users = User::with_email(&pool, "alice@example.com").await?;
 
-// Delete by field
-User::delete_by_email(&pool, "alice@example.com").await?;
+// Delete a specific record (by primary key)
+user.delete(&pool).await?;
 ```
 
 ### Examples
