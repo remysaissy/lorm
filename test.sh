@@ -31,150 +31,82 @@ show_help() {
     cat << EOF
 Usage: $0 [OPTION]
 
-Run GitHub Actions workflows locally using act to verify changes before committing.
+Run cargo test with configurable features.
 
 Options:
-    --all           Run all CI jobs (default)
-    --format        Run format check only
-    --check         Run clippy check only
-    --test          Run unit tests only
-    --examples      Run examples only
-    --coverage      Run coverage check only
-    --job <name>    Run specific job by name
-    --list          List all available jobs
-    --help          Display this help message
+    --no-default-features       Disable default features
+    --feature=<name>            Enable specific feature(s) - comma-separated (alias: --features)
+    --features=<name>           Enable specific feature(s) - comma-separated
+    --all-features              Enable all features
+    --package=<name>            Target specific package(s) - can be used multiple times
+    -p <name>                   Short form of --package
+    --help                      Display this help message
 
 Examples:
-    $0                  # Run all jobs
-    $0 --all            # Run all jobs
-    $0 --format         # Run format check only
-    $0 --test           # Run unit tests only
-    $0 --job coverage   # Run coverage job only
-    $0 --list           # List available jobs
+    $0                                          # Run tests with default features
+    $0 --all-features                           # Run tests with all features
+    $0 --no-default-features                    # Run tests with no features
+    $0 --no-default-features --features=feat1
+                                                # Run tests with only feat1
+    $0 --features=feat1,feat2                   # Run tests with multiple features
+    $0 --package=my-crate                       # Run tests for specific package
+    $0 -p crate1 -p crate2 --all-features       # Run tests for multiple packages
 
-Requirements:
-  - act must be installed (https://github.com/nektos/act)
-  - Docker must be running
-  - GitHub Actions workflow at .github/workflows/lorm.yml
-
-Installation:
-  # macOS
-  brew install act
-
-  # Linux
-  curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
-
-  # Or via Go
-  go install github.com/nektos/act@latest
+Note: This script only runs cargo test. For format checking use format.sh,
+      for linting use check.sh, and for coverage use coverage.sh.
 
 EOF
 }
 
-# Check if act is installed
-check_act() {
-    if ! command -v act &> /dev/null; then
-        print_error "act is not installed."
-        echo ""
-        echo "Please install act to run GitHub Actions locally:"
-        echo ""
-        echo "macOS:"
-        echo "  brew install act"
-        echo ""
-        echo "Linux:"
-        echo "  curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash"
-        echo ""
-        echo "Via Go:"
-        echo "  go install github.com/nektos/act@latest"
-        echo ""
-        echo "For more information: https://github.com/nektos/act"
-        exit 1
-    fi
-}
-
-# Check if Docker is running
-check_docker() {
-    if ! docker info &> /dev/null; then
-        print_error "Docker is not running."
-        echo ""
-        echo "act requires Docker to run GitHub Actions locally."
-        echo "Please start Docker and try again."
-        exit 1
-    fi
-}
-
-# List available jobs
-list_jobs() {
-    print_info "Available jobs in .github/workflows/lorm.yml:"
-    echo ""
-    echo "  - format      Format check (cargo fmt)"
-    echo "  - check       Clippy linting (cargo clippy)"
-    echo "  - test        Unit tests (cargo test)"
-    echo "  - examples    Run all examples"
-    echo "  - coverage    Code coverage with thresholds"
-    echo ""
-}
-
-# Run specific job
-run_job() {
-    local job_name=$1
-    print_info "Running job: $job_name"
-    act -j "$job_name" --workflows .github/workflows/lorm.yml
-}
-
-# Run all jobs
-run_all() {
-    print_info "Running all CI jobs locally..."
-    print_warning "This may take several minutes..."
-    echo ""
-    act --workflows .github/workflows/lorm.yml
-}
-
 # Main script
 main() {
-    local job=""
-    local run_all_jobs=true
+    local feature_flags=""
+    local no_default_features=false
+    local package_flags=""
 
     # Parse arguments
-    if [ $# -eq 0 ]; then
-        run_all_jobs=true
-    else
+    while [ $# -gt 0 ]; do
         case "$1" in
-            --all)
-                run_all_jobs=true
+            --no-default-features)
+                no_default_features=true
+                shift
                 ;;
-            --format)
-                job="format"
-                run_all_jobs=false
+            --feature=*|--features=*)
+                local feat_value="${1#*=}"
+                if [ -z "$feature_flags" ]; then
+                    feature_flags="--features $feat_value"
+                else
+                    feature_flags="$feature_flags,$feat_value"
+                fi
+                shift
                 ;;
-            --check)
-                job="check"
-                run_all_jobs=false
-                ;;
-            --test)
-                job="test"
-                run_all_jobs=false
-                ;;
-            --examples)
-                job="examples"
-                run_all_jobs=false
-                ;;
-            --coverage)
-                job="coverage"
-                run_all_jobs=false
-                ;;
-            --job)
+            --feature|--features)
                 if [ $# -lt 2 ]; then
-                    print_error "Missing job name after --job"
-                    echo ""
-                    show_help
+                    print_error "--features requires a feature name"
                     exit 1
                 fi
-                job="$2"
-                run_all_jobs=false
+                if [ -z "$feature_flags" ]; then
+                    feature_flags="--features $2"
+                else
+                    feature_flags="$feature_flags,$2"
+                fi
+                shift 2
                 ;;
-            --list)
-                list_jobs
-                exit 0
+            --all-features)
+                feature_flags="--all-features"
+                shift
+                ;;
+            --package=*)
+                package_flags="$package_flags --package ${1#*=}"
+                shift
+                ;;
+            --package|-p)
+                if [ $# -lt 2 ]; then
+                    print_error "--package requires a package name"
+                    exit 1
+                fi
+                package_flags="$package_flags --package $2"
+                shift 2
                 ;;
             --help|-h)
                 show_help
@@ -187,26 +119,34 @@ main() {
                 exit 1
                 ;;
         esac
+    done
+
+    # Build cargo flags
+    local cargo_flags=""
+    if [ "$no_default_features" = true ]; then
+        cargo_flags="--no-default-features"
+    fi
+    if [ -n "$feature_flags" ]; then
+        cargo_flags="$cargo_flags $feature_flags"
+    fi
+    if [ -n "$package_flags" ]; then
+        cargo_flags="$cargo_flags$package_flags"
+        print_info "Target packages:$package_flags"
     fi
 
-    # Check dependencies
-    print_info "Checking dependencies..."
-    check_act
-    check_docker
-    print_success "Dependencies OK"
-    echo ""
-
-    # Run jobs
-    if [ "$run_all_jobs" = true ]; then
-        run_all
+    # Display configuration
+    if [ -n "$cargo_flags" ]; then
+        print_info "Cargo flags: $cargo_flags"
     else
-        run_job "$job"
+        print_info "Using default features"
     fi
 
+    # Run tests
+    print_info "Running tests..."
+    cargo test $cargo_flags
+
     echo ""
-    print_success "CI tests complete!"
-    echo ""
-    print_info "Your changes are ready to commit and push!"
+    print_success "Tests complete!"
 }
 
 main "$@"
