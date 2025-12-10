@@ -8,7 +8,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! lorm = { version = "0.1" }
+//! lorm = { version = "0.2" }
 //! sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 //! ```
 //!

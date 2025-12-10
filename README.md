@@ -20,7 +20,7 @@ Add Lorm to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-lorm = "0.1"
+lorm = "0.2"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
