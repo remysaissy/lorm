@@ -1,57 +1,82 @@
 //! A zero cost and lightweight ORM operations for SQLx.
-//! # Use
-//! adding the following to your project's Cargo.toml:
+//!
+//! Lorm generates type-safe database operations at compile time using derive macros.
+//!
+//! # Installation
+//!
+//! Add the following to your project's `Cargo.toml`:
+//!
 //! ```toml
 //! [dependencies]
-//! lorm = { version = "0" }
-//! sqlx = { version = "0.8" }
+//! lorm = { version = "0.1" }
+//! sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 //! ```
 //!
-//! # Examples
+//! # Quick Example
+//!
 //! ```ignore
+//! use lorm::ToLOrm;
+//! use lorm::predicates::Where;
+//! use sqlx::{FromRow, SqlitePool};
+//!
 //! #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
-//! struct AltUser {
+//! struct User {
 //!     #[lorm(pk)]
 //!     #[lorm(readonly)]
 //!     pub id: i32,
 //!
 //!     #[lorm(by)]
 //!     pub email: String,
-//!
-//!     #[allow(unused)]
-//!     #[lorm(created_at)]
-//!     #[lorm(readonly)]
-//!     pub created_at: chrono::DateTime<FixedOffset>,
-//!
-//!     #[lorm(updated_at)]
-//!     #[lorm(new = "chrono::Utc::now().fixed_offset()")]
-//!     pub updated_at: chrono::DateTime<FixedOffset>,
 //! }
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
-//!     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
-//!     let pool = SqlitePool::connect(&database_url).await?;
+//!     let pool = SqlitePool::connect("sqlite::memory:").await?;
 //!
-//!     // Create users
-//!     for i in 0..10 {
-//!         let mut u = AltUser::default();
-//!         u.email = format!("user{}@example.com", i);
-//!         u.save(&pool).await?;
-//!     }
+//!     // Create a user
+//!     let mut user = User::default();
+//!     user.email = "alice@example.com".to_string();
+//!     let user = user.save(&pool).await?;
 //!
-//!     // Query with pagination
-//!     let users = AltUser::select()
-//!         .order_by_email(OrderBy::Desc)
-//!         .limit(2)
-//!         .offset(2)
+//!     // Find by field (generated from #[lorm(by)])
+//!     let found = User::by_email(&pool, "alice@example.com").await?;
+//!
+//!     // Query with filtering and pagination
+//!     let users = User::select()
+//!         .where_email(Where::Eq, "alice@example.com")
+//!         .order_by_email()
+//!         .desc()
+//!         .limit(10)
 //!         .build(&pool)
 //!         .await?;
 //!
-//!     println!("Found {} users", users.len());
+//!     // Delete the user
+//!     user.delete(&pool).await?;
+//!
 //!     Ok(())
 //! }
 //! ```
+//!
+//! # Generated Methods
+//!
+//! For a struct with `#[derive(ToLOrm)]`, Lorm generates:
+//!
+//! - `save(&executor)` - Insert or update (upsert)
+//! - `delete(&executor)` - Delete by primary key
+//! - `by_{field}(&executor, value)` - Find one by field (for `#[lorm(by)]` fields)
+//! - `with_{field}(&executor, value)` - Find all by field (for `#[lorm(by)]` fields)
+//! - `select()` - Start a query builder
+//!
+//! # Query Builder
+//!
+//! The `select()` method returns a builder with these methods:
+//!
+//! - `where_{field}(Where::Eq, value)` - Filter by comparison
+//! - `where_between_{field}(start, end)` - Filter by range
+//! - `order_by_{field}()` - Add ordering (chain with `.asc()` or `.desc()`)
+//! - `group_by_{field}()` - Group results
+//! - `limit(n)` / `offset(n)` - Pagination
+//! - `build(&executor)` - Execute and return results
 
 pub mod errors;
 pub mod predicates;

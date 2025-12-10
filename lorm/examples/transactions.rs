@@ -43,8 +43,8 @@ async fn transfer(pool: &SqlitePool, from_id: &Uuid, to_id: &Uuid, amount: i64) 
     let mut tx = pool.begin().await?;
 
     // Get accounts within transaction
-    let mut from_account = Account::by_id(&mut *tx, from_id).await?;
-    let mut to_account = Account::by_id(&mut *tx, to_id).await?;
+    let mut from_account = Account::by_id(&mut *tx, from_id.clone()).await?;
+    let mut to_account = Account::by_id(&mut *tx, to_id.clone()).await?;
 
     // Check balance
     if from_account.balance < amount {
@@ -105,8 +105,8 @@ async fn main() -> Result<()> {
     transfer(&pool, &alice.id, &bob.id, 200).await?;
 
     // Verify balances
-    let alice_updated = Account::by_id(&pool, &alice.id).await?;
-    let bob_updated = Account::by_id(&pool, &bob.id).await?;
+    let alice_updated = Account::by_id(&pool, alice.id).await?;
+    let bob_updated = Account::by_id(&pool, bob.id).await?;
     println!("   Alice's balance: ${}", alice_updated.balance);
     println!("   Bob's balance: ${}\n", bob_updated.balance);
 
@@ -118,8 +118,8 @@ async fn main() -> Result<()> {
     }
 
     // Verify balances unchanged
-    let alice_final = Account::by_id(&pool, &alice.id).await?;
-    let bob_final = Account::by_id(&pool, &bob.id).await?;
+    let alice_final = Account::by_id(&pool, alice.id).await?;
+    let bob_final = Account::by_id(&pool, bob.id).await?;
     println!("   Alice's balance (unchanged): ${}", alice_final.balance);
     println!("   Bob's balance (unchanged): ${}\n", bob_final.balance);
 
