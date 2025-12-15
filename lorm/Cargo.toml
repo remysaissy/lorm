@@ -22,7 +22,7 @@ postgres = ["lorm-macros/postgres", "sqlx/postgres"]
 mysql = ["lorm-macros/mysql", "sqlx/mysql"]
 
 [dependencies]
-lorm-macros = { workspace = true }
+lorm-macros = { path = "../lorm-macros", version = "0.2.2" }
 sqlx = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["std", "derive"] }
 thiserror = { workspace = true, features = ["std"] }
