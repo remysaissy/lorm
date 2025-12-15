@@ -7,7 +7,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.2.0"
+version = "0.2.1"
 license = "Apache-2.0"
 license-file = "LICENSE"
 repository = "https://github.com/remysaissy/lorm.git"
@@ -21,15 +21,17 @@ keywords = [
 ]
 
 [workspace.dependencies]
-tokio = { version = "1", default-features = false }
+lorm-macros = { path = "lorm-macros" }
+
+tokio = { version = "1.48", default-features = false }
 sqlx = { version = "0.8", default-features = false }
 thiserror = { version = "2.0", default-features = false }
 chrono = { version = "0.4", default-features = false }
-uuid = { version = "1", default-features = false }
+uuid = { version = "1.19", default-features = false }
 serde = { version = "1.0", default-features = false }
 syn = { version = "2.0", default-features = false }
 quote = { version = "1.0", default-features = false }
 Inflector = { version = "0", default-features = false }
 pluralizer = { version = "0.5", default-features = false }
-fake = { version = "4" }
+fake = { version = "4.4" }
 anyhow = { version = "1.0" }
