@@ -153,6 +153,7 @@ Lorm generates a fluent query builder using `::select()`. The builder supports f
 - `where_{field}(Where::GreaterOrEqualTo, value)` - Greater than or equal
 - `where_{field}(Where::LesserThan, value)` - Less than
 - `where_{field}(Where::LesserOrEqualTo, value)` - Less than or equal
+- `where_{field}(Where::Like, value)` - Search for a specified pattern 
 - `where_between_{field}(start, end)` - Between two values (inclusive)
 
 **Ordering** (available for `#[lorm(by)]` fields):
