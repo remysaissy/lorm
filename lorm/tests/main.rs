@@ -46,6 +46,7 @@ struct AltUser {
     #[lorm(readonly)]
     pub id: i32,
 
+    #[lorm(by)]
     pub email: String,
 
     #[lorm(by)]
@@ -443,5 +444,37 @@ async fn test_between_is_working() {
             .await
             .unwrap();
         assert_eq!(res.len(), 3);
+    }
+}
+
+#[tokio::test]
+async fn test_like_is_working() {
+    let pool = get_pool().await.expect("Failed to create pool");
+    let mut tx = pool.begin().await.unwrap();
+    _test(&mut *tx).await;
+    tx.commit().await.unwrap();
+
+    async fn _test(conn: &mut SqliteConnection) {
+        let email = SafeEmail().fake::<String>();
+        for i in 0..11 {
+            let mut u = AltUser::default();
+            u.email = format!("{i}-{email}").to_string();
+            u.count = Some(i);
+            let _ = u.save(&mut *conn).await.unwrap();
+        }
+
+        let res = AltUser::select()
+            .where_email(Where::Like, "1%")
+            .build(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(res.len(), 2);
+
+        let res = AltUser::select()
+            .where_email(Where::Like, "%")
+            .build(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(res.len(), 11);
     }
 }
