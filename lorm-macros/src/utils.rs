@@ -101,14 +101,11 @@ pub(crate) fn get_type_without_reference(ty: &Type) -> syn::Result<Type> {
             let ident = &last_segment.ident;
 
             // Check for Option types and recurse
-            if ident == "Option" {
-                if let PathArguments::AngleBracketed(angle_bracketed) = &last_segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_type)) =
-                        angle_bracketed.args.first()
-                    {
-                        return get_type_without_reference(inner_type);
-                    }
-                }
+            if ident == "Option"
+                && let PathArguments::AngleBracketed(angle_bracketed) = &last_segment.arguments
+                && let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first()
+            {
+                return get_type_without_reference(inner_type);
             }
 
             // Always return the type without reference
