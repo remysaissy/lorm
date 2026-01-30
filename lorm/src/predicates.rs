@@ -42,6 +42,9 @@ pub enum Where {
 
     /// Less than or equal to (`<=`) comparison
     LesserOrEqualTo,
+
+    /// Like (`LIKE`) to search for a specified pattern
+    Like,
 }
 
 impl Display for Where {
@@ -53,6 +56,7 @@ impl Display for Where {
             Where::GreaterOrEqualTo => write!(f, ">="),
             Where::LesserThan => write!(f, "<"),
             Where::LesserOrEqualTo => write!(f, "<="),
+            Where::Like => write!(f, "LIKE"),
         }
     }
 }
