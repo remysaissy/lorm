@@ -20,10 +20,28 @@ pub fn generate_select(
         let field_name = get_field_name(field);
         let where_between_fn = format_ident!("where_between_{}", field_ident);
         let where_fn = format_ident!("where_{}", field_ident);
+        let having_fn = format_ident!("having_{}", field_ident);
         let order_by_fn = format_ident!("order_by_{}", field_ident);
         let group_by_fn = format_ident!("group_by_{}", field_ident);
 
         let code = quote! {
+            #struct_visibility fn #having_fn<T: #field_type_constraints>(mut self, op: lorm::predicates::Having, fun: lorm::predicates::Function, value: T) -> #builder_struct_ident {
+                if self.is_having == false {
+                    self.builder.push(" HAVING");
+                    self.is_having = true;
+                } else {
+                    self.builder.push(" AND");
+                }
+                let stmt = match fun {
+                    lorm::predicates::Function::Null => format!(" {} {} ", #field_name, op).to_string(),
+                    lorm::predicates::Function::Count { is_distinct } if is_distinct == true => format!(" {}(DISTINCT {}) {} ", fun, #field_name, op).to_string(),
+                    _ => format!(" {}({}) {} ", fun, #field_name, op).to_string()
+                };
+                self.builder.push(stmt);
+                self.builder.push_bind(value);
+                self
+            }
+
             #struct_visibility fn #where_fn<T: #field_type_constraints>(mut self, op: lorm::predicates::Where, value: T) -> #builder_struct_ident {
                 if self.is_where == false {
                     self.builder.push(" WHERE");
@@ -91,7 +109,7 @@ pub fn generate_select(
                     #table_columns, #table_name
                 );
                 let builder = sqlx::QueryBuilder::new(sql);
-                #builder_struct_ident { builder, is_where: false, is_group_by: false, is_order_by: false }
+                #builder_struct_ident { builder, is_where: false, is_having: false, is_group_by: false, is_order_by: false }
             }
         }
 
@@ -99,11 +117,25 @@ pub fn generate_select(
         #struct_visibility struct #builder_struct_ident {
             builder: sqlx::QueryBuilder<'static, #database_type>,
             is_where: bool,
+            is_having: bool,
             is_group_by: bool,
             is_order_by: bool
         }
 
         impl #builder_struct_ident {
+            #struct_visibility fn having_all_count(mut self, op: lorm::predicates::Having, value: i64) -> #builder_struct_ident {
+                if self.is_having == false {
+                    self.builder.push(" HAVING");
+                    self.is_having = true;
+                } else {
+                    self.builder.push(" AND");
+                }
+                let stmt = format!(" COUNT(*) {} ", op).to_string();
+                self.builder.push(stmt);
+                self.builder.push_bind(value);
+                self
+            }
+
             #struct_visibility fn asc(mut self) -> #builder_struct_ident {
                 self.builder.push(" ASC ");
                 self

@@ -8,7 +8,7 @@ Lorm is an async and lightweight ORM for SQLx that uses derive macros to generat
 - **Type-safe queries** - Leverages Rust's type system for compile-time query validation
 - **Async-first** - Built on tokio and async/await
 - **Automatic CRUD** - Generate create, read, update, and delete operations
-- **Flexible querying** - Builder pattern for complex queries with filtering, ordering, and pagination
+- **Flexible querying** - Builder pattern for complex queries with filtering, ordering, grouping, aggregation, and pagination
 - **Pool and Transaction support** - Works seamlessly with both connection pools and transactions
 - **Timestamp management** - Automatic handling of `created_at` and `updated_at` fields
 - **Custom field generation** - Support for UUID, custom types, and database-generated values
@@ -142,7 +142,7 @@ pub created_at: DateTime<FixedOffset>
 
 ### Query Builder API
 
-Lorm generates a fluent query builder using `::select()`. The builder supports filtering, ordering, grouping, and pagination.
+Lorm generates a fluent query builder using `::select()`. The builder supports filtering, ordering, grouping, aggregation, and pagination.
 
 #### Available Methods
 
@@ -153,8 +153,19 @@ Lorm generates a fluent query builder using `::select()`. The builder supports f
 - `where_{field}(Where::GreaterOrEqualTo, value)` - Greater than or equal
 - `where_{field}(Where::LesserThan, value)` - Less than
 - `where_{field}(Where::LesserOrEqualTo, value)` - Less than or equal
-- `where_{field}(Where::Like, value)` - Search for a specified pattern 
+- `where_{field}(Where::Like, value)` - Search for a specified pattern
 - `where_between_{field}(start, end)` - Between two values (inclusive)
+
+**Aggregation & Having** (available for `#[lorm(by)]` fields):
+- `having_{field}(Having::Op, Function::Type, value)` - Filter grouped results
+- `having_all_count(Having::Op, value)` - Filter by COUNT(*) on grouped results
+
+**Aggregate Functions** (used with HAVING clauses):
+- `Function::Count { is_distinct: bool }` - Count rows (with optional DISTINCT)
+- `Function::Sum` - Sum of values
+- `Function::Avg` - Average of values
+- `Function::Min` - Minimum value
+- `Function::Max` - Maximum value
 
 **Ordering** (available for `#[lorm(by)]` fields):
 - `order_by_{field}().asc()` - Ascending order
@@ -170,7 +181,7 @@ Lorm generates a fluent query builder using `::select()`. The builder supports f
 #### Query Examples
 
 ```rust
-use lorm::predicates::Where;
+use lorm::predicates::{Where, Having, Function};
 
 // Simple query with exact match
 let users = User::select()
@@ -210,6 +221,31 @@ let grouped = User::select()
     .group_by_email()
     .group_by_id()
     .order_by_email()
+    .asc()
+    .build(&pool)
+    .await?;
+
+// Aggregation with HAVING clause
+let high_value_groups = Product::select()
+    .group_by_category()
+    .having_price(Having::GreaterThan, Function::Avg, 100.0)
+    .build(&pool)
+    .await?;
+
+// Count aggregation with HAVING
+let popular_categories = Product::select()
+    .group_by_category()
+    .having_all_count(Having::GreaterOrEqualTo, 10)
+    .build(&pool)
+    .await?;
+
+// Complex aggregation query
+let stats = Order::select()
+    .where_created_at(Where::GreaterOrEqualTo, last_month)
+    .group_by_customer_id()
+    .having_amount(Having::GreaterThan, Function::Sum, 1000.0)
+    .having_all_count(Having::GreaterOrEqualTo, 5)
+    .order_by_customer_id()
     .asc()
     .build(&pool)
     .await?;

@@ -3,7 +3,7 @@ use chrono::FixedOffset;
 use fake::Fake;
 use fake::faker::internet::en::SafeEmail;
 use lorm::ToLOrm;
-use lorm::predicates::Where;
+use lorm::predicates::{Function, Having, Where};
 use sqlx::migrate::MigrateDatabase;
 use sqlx::{Executor, FromRow, Sqlite, SqliteConnection, SqlitePool};
 use std::thread::sleep;
@@ -476,5 +476,38 @@ async fn test_like_is_working() {
             .await
             .unwrap();
         assert_eq!(res.len(), 11);
+    }
+}
+
+#[tokio::test]
+async fn test_having_is_working() {
+    let pool = get_pool().await.expect("Failed to create pool");
+    let mut tx = pool.begin().await.unwrap();
+    _test(&mut *tx).await;
+    tx.commit().await.unwrap();
+
+    async fn _test(conn: &mut SqliteConnection) {
+        for i in 0..10 {
+            let mut u = AltUser::default();
+            u.email = SafeEmail().fake::<String>();
+            u.count = Some(i);
+            let _ = u.save(&mut *conn).await.unwrap();
+        }
+
+        let res = AltUser::select()
+            .group_by_count()
+            .having_all_count(Having::Eq, 2)
+            .build(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(res.len(), 0);
+
+        let res = AltUser::select()
+            .group_by_count()
+            .having_count(Having::Eq, Function::Max, 1)
+            .build(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(res.len(), 1);
     }
 }
