@@ -74,7 +74,6 @@ mod utils;
         // lorm(readonly),
         // lorm(new="module::path::class::new_custom()"),
         // lorm(is_set="is_nil()"),
-        // lorm(rename="name"),
         // lorm(created_at),
         // lorm(updated_at),
 
