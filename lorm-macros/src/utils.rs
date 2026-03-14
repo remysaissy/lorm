@@ -355,20 +355,6 @@ pub(crate) fn database_type(input: &DeriveInput) -> syn::Result<TokenStream> {
     }
 }
 
-/// Checks whether a type is `String` or `str`.
-fn is_string_type(ty: &Type) -> bool {
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            let type_name = segment.ident.to_string();
-            matches!(type_name.as_str(), "String" | "str")
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-
 /// Generates the type constraints for the `where` clause needed for binding a field value to SQLx queries.
 ///
 /// These constraints are that the field type implements `sqlx::Encode` and `sqlx::Type` for the specific database type.

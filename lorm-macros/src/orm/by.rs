@@ -56,8 +56,7 @@ pub fn generate_by(
 
                     let type_constraints = fields
                         .iter()
-                        .enumerate()
-                        .map(|(i, field)| {
+                        .map(|field| {
                             get_bind_type_where_constraint(field, database_type, &lifetime)
                         })
                         .collect::<Result<Vec<_>, _>>()?;
