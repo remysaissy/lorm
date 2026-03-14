@@ -18,7 +18,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     let created_at_code = match model.created_at_field.as_ref() {
         None => quote! {},
         Some(field) => {
-            if model.is_created_at_readonly {
+            if is_readonly(field) {
                 quote! {}
             } else {
                 let new_method = get_new_method(field);
@@ -33,7 +33,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     let updated_at_code = match model.updated_at_field.as_ref() {
         None => quote! {},
         Some(field) => {
-            if model.is_updated_at_readonly {
+            if is_readonly(field) {
                 quote! {}
             } else {
                 let new_method = get_new_method(field);
@@ -93,12 +93,12 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
 
     // prepare `insertable` fields
     let insert_columns_vec: Vec<String> = model
-        .insert_fields
+        .upsert_fields
         .iter()
         .map(|field| get_field_name(field))
         .collect();
     let insert_values: Vec<_> = model
-        .insert_fields
+        .upsert_fields
         .iter()
         .map(|field| {
             if is_created_at_field(field) {
@@ -114,11 +114,11 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         })
         .collect();
     let insert_columns = insert_columns_vec.join(",");
-    let insert_value_placeholders = create_insert_placeholders(&model.insert_fields);
+    let insert_value_placeholders = create_insert_placeholders(&model.upsert_fields);
 
     // find `updatable` fields and generate the set clause for upsert
     let upsert_clause = model
-        .update_fields
+        .upsert_fields
         .iter()
         .filter(|f| !is_created_at_field(f))
         .map(|f| {

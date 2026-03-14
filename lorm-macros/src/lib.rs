@@ -1,4 +1,5 @@
 use proc_macro::TokenStream;
+use proc_macro_error2::proc_macro_error;
 use syn::{DeriveInput, parse_macro_input};
 
 mod models;
@@ -62,6 +63,7 @@ mod utils;
 ///  The function call is expected to return bool.
 ///  Defaults to class_type::default() which assumes both the Default and PartialEq trait are implemented.
 ///
+#[proc_macro_error]
 #[proc_macro_derive(ToLOrm,
     attributes(
         lorm,
