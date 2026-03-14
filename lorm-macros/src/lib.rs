@@ -82,8 +82,5 @@ mod utils;
 )]
 pub fn sql_derive_to_orm(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    match orm::expand_derive_to_orm(&input) {
-        Ok(ts) => ts,
-        Err(e) => e.to_compile_error().into(),
-    }
+    orm::expand_derive_to_orm(&input).unwrap_or_else(|e| e.to_compile_error().into())
 }
