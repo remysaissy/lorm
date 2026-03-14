@@ -210,6 +210,30 @@ pub(crate) fn get_table_name(input: &DeriveInput) -> String {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) enum PrimaryKeyType {
+    Generated,
+    Manual,
+}
+
+/// Gets the [PrimaryKeyType] for a struct.
+///
+/// Uses `#[lorm(pk_type = "...")]` is specified, otherwise ith defaults to [PrimaryKeyType::Generated].
+pub(crate) fn get_primary_key_type(input: &DeriveInput) -> PrimaryKeyType {
+    let primary_key_type = get_attribute_by_key(&input.attrs, "lorm", "pk_type");
+    if primary_key_type.is_none() {
+        return PrimaryKeyType::Generated;
+    }
+    match primary_key_type.unwrap().as_str() {
+        "generated" => PrimaryKeyType::Generated,
+        "manual" => PrimaryKeyType::Manual,
+        other => panic!(
+            "Invalid primary key type: {}. Valid types are: generated, manual.",
+            other
+        ),
+    }
+}
+
 /// Gets the database column name for a field.
 ///
 /// Uses the `#[lorm(rename="...")]` attribute if specified, otherwise converts the field name

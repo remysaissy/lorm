@@ -1,6 +1,7 @@
 use crate::models::OrmModel;
 use crate::utils::{db_placeholder, get_field_name};
 use quote::{__private::TokenStream, format_ident, quote};
+use syn::spanned::Spanned;
 
 pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let trait_ident = format_ident!("{}DeleteTrait", model.struct_name);
@@ -9,13 +10,28 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
     let table_name = &model.table_name;
 
     // Primary key
-    let pk_column = model.pk_field.ident.as_ref().unwrap();
-    let pk_name = get_field_name(model.pk_field);
-    let pk_placeholder = format!(
-        "{} = {}",
-        pk_name,
-        db_placeholder(model.pk_field, 1).unwrap()
-    );
+    let primary_key_fields = model.primary_key.fields();
+    let pk_placeholder = primary_key_fields
+        .iter()
+        .enumerate()
+        .map(|(i, f)| match db_placeholder(f, i + 1) {
+            Ok(placeholder) => {
+                let field_name = get_field_name(f);
+                Ok(format!("{field_name} = {placeholder}"))
+            }
+            Err(e) => Err(e),
+        })
+        .collect::<Result<Vec<_>, syn::Error>>()?
+        .join(" AND ");
+    let pk_columns = primary_key_fields
+        .iter()
+        .map(|f| {
+            f.ident.as_ref().ok_or_else(|| {
+                syn::Error::new(f.span(), "Primary key field must have an identifier.")
+            })
+        })
+        .collect::<Result<Vec<_>, syn::Error>>()?;
+
     let sql_ident = format!("DELETE FROM {} WHERE {}", table_name, pk_placeholder);
 
     Ok(quote! {
@@ -26,7 +42,9 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
         impl<'e, E: #executor_type> #trait_ident<'e, E> for #struct_name {
             async fn delete(&self, executor: E) -> lorm::errors::Result<()> {
                 sqlx::query(#sql_ident)
-                .bind(&self.#pk_column)
+                #(
+                    .bind(&self.#pk_columns)
+                )*
                 .execute(executor).await?;
                 Ok(())
             }
