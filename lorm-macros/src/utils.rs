@@ -284,9 +284,9 @@ pub fn get_column_name(field: &Field) -> String {
 pub(crate) fn create_insert_placeholders(fields: &[UpsertField]) -> String {
     fields
         .iter()
-        .flat_map(|f| f.column_names().into_iter().map(|name| (f.base(), name)))
+        .flat_map(|f| f.column_names().into_iter().map(|_| f.base()))
         .enumerate()
-        .map(|(i, (f, name))| db_placeholder(f, i + 1).unwrap())
+        .map(|(i, f)| db_placeholder(f, i + 1).unwrap())
         .collect::<Vec<_>>()
         .join(",")
 }
