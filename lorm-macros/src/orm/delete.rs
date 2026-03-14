@@ -33,6 +33,7 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
             async fn delete(&self, executor: E) -> lorm::errors::Result<()>;
         }
 
+        #[automatically_derived]
         impl<'e, E: #executor_type> #trait_ident<'e, E> for #struct_name {
             async fn delete(&self, executor: E) -> lorm::errors::Result<()> {
                 sqlx::query(#sql_ident)

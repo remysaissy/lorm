@@ -102,6 +102,7 @@ pub fn generate_select(
             fn select() -> #builder_struct_ident;
         }
 
+        #[automatically_derived]
         impl #trait_ident for #struct_name {
             fn select() -> #builder_struct_ident {
                 let sql = format!(
@@ -122,6 +123,7 @@ pub fn generate_select(
             is_order_by: bool
         }
 
+        #[automatically_derived]
         impl #builder_struct_ident {
             #struct_visibility fn having_all_count(mut self, op: lorm::predicates::Having, value: i64) -> #builder_struct_ident {
                 if self.is_having == false {
