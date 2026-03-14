@@ -270,11 +270,11 @@ pub(crate) fn get_primary_key_by_ident(input: &DeriveInput) -> Ident {
 
 /// Gets the database column name for a field.
 ///
-/// Uses the `#[lorm(rename="...")]` attribute if specified, otherwise converts the field name
-/// to snake_case (e.g., `userId` becomes `user_id`).
+/// Uses the `#[sqlx(rename="...")]` attribute if specified, otherwise keeps the field name as is (sqlx default).
+/// It does not support `#[sqlx(rename_all = "...")]`.
 pub fn get_field_name(field: &Field) -> String {
-    get_string_attribute_by_key(&field.attrs, "lorm", "rename")
-        .unwrap_or_else(|| field.ident.as_ref().unwrap().to_string().to_snake_case())
+    get_string_attribute_by_key(&field.attrs, "sqlx", "rename")
+        .unwrap_or_else(|| field.ident.as_ref().unwrap().to_string())
 }
 
 /// Creates SQL placeholders for INSERT statements.
