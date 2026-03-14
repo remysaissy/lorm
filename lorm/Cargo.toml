@@ -26,6 +26,8 @@ lorm-macros = { path = "../lorm-macros", version = "0.2.2" }
 sqlx = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["std", "derive"] }
 thiserror = { workspace = true, features = ["std"] }
+log = "0.4.29"
+test-log = "0.2.19"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

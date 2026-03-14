@@ -2,11 +2,14 @@ use anyhow::Result;
 use chrono::FixedOffset;
 use fake::Fake;
 use fake::faker::internet::en::SafeEmail;
+use log::log;
 use lorm::ToLOrm;
 use lorm::predicates::{Function, Having, Where};
 use sqlx::migrate::MigrateDatabase;
-use sqlx::{Executor, FromRow, Sqlite, SqlitePool};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::{ConnectOptions, Executor, FromRow, Sqlite, SqliteConnection, SqlitePool};
 use std::ops::Add;
+use std::str::FromStr;
 use std::time::Duration;
 use tokio::fs;
 use tokio::time::{Instant, sleep_until};
@@ -64,6 +67,16 @@ struct AltUser {
     pub updated_at: chrono::DateTime<FixedOffset>,
 }
 
+#[derive(Debug, Default, Clone, FromRow, ToLOrm, PartialEq, Eq, Hash)]
+#[lorm(pk_type = "manual")]
+struct Pairing {
+    #[lorm(pk)]
+    pub user1: i32,
+    #[lorm(pk)]
+    pub user2: i32,
+    pub score: i32,
+}
+
 pub async fn get_conn(pool: SqlitePool) -> SqlitePool {
     pool
 }
@@ -78,7 +91,11 @@ pub async fn get_pool() -> Result<SqlitePool> {
         Sqlite::drop_database(&database_url).await?;
     }
     Sqlite::create_database(&database_url).await?;
-    let pool = SqlitePool::connect(&database_url).await?;
+    let pool = SqlitePoolOptions::new()
+        .connect_with(
+            SqliteConnectOptions::from_str(&database_url)?.log_statements(log::LevelFilter::Debug),
+        )
+        .await?;
     let migration_path = fs::canonicalize("tests/resources/migrations").await?;
     let mut dir = fs::read_dir(migration_path).await?;
     while let Some(entry) = dir.next_entry().await? {
@@ -166,6 +183,25 @@ async fn test_user_are_listed() {
     let res = User::select().limit(2).build(&pool).await.unwrap();
     assert_eq!(res.is_empty(), false);
     assert_eq!(res.len(), 2);
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_pairing_is_created() {
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let pairing = Pairing {
+        user1: 1,
+        user2: 2,
+        score: 3,
+    };
+    let p = pairing.save(&pool).await.unwrap();
+    assert_eq!(pairing, p);
+    let result = Pairing::select().build(&pool).await.unwrap();
+    assert_eq!(result, vec![pairing]);
+
+    let selected = Pairing::by_key(&pool, 1, 2).await.unwrap();
+    assert_eq!(selected, p);
 }
 
 #[tokio::test]
@@ -345,4 +381,21 @@ async fn create_alt_users<'e, E: sqlx::SqliteExecutor<'e> + Copy>(
         users.push(u);
     }
     users
+}
+
+async fn create_pairings<'e, E: sqlx::SqliteExecutor<'e> + Copy>(
+    conn: E,
+    count: i32,
+) -> Vec<Pairing> {
+    let mut pairings = vec![];
+    for i in 0..count {
+        let p = Pairing {
+            user1: i,
+            user2: i * 2,
+            score: i * 3,
+        };
+        let p = p.save(conn).await.unwrap();
+        pairings.push(p);
+    }
+    pairings
 }

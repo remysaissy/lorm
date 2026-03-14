@@ -1,7 +1,7 @@
 use inflector::Inflector;
-use quote::{__private::TokenStream, ToTokens, quote};
+use quote::{__private::TokenStream, ToTokens, quote, format_ident};
 use syn::spanned::Spanned;
-use syn::{DeriveInput, Expr, Field, LitStr, PathArguments, Type, parse};
+use syn::{DeriveInput, Expr, Field, LitStr, PathArguments, Type, parse, Ident};
 
 /// Checks if an attribute with the given name and value exists on the field.
 ///
@@ -25,11 +25,11 @@ pub(crate) fn has_attribute_value(attrs: &[syn::Attribute], name: &str, value: &
     false
 }
 
-/// Gets the value of an attribute by its key.
+/// Gets the value of a String-type attribute by its key.
 ///
 /// For example, extracts `"users"` from `#[lorm(rename="users")]` when called with
 /// `name="lorm"` and `key="rename"`.
-pub(crate) fn get_attribute_by_key(
+pub(crate) fn get_string_attribute_by_key(
     attrs: &[syn::Attribute],
     name: &str,
     key: &str,
@@ -50,6 +50,35 @@ pub(crate) fn get_attribute_by_key(
             Err(meta.error("attribute value not found"))
         })
         .ok();
+    }
+    val
+}
+
+/// Gets the value of an attribute with an identifier value by its key.
+///
+/// For example, extracts `by_primary_key` from `#[lorm(pk_by=by_primary_key)]` when called with
+/// `name="lorm"` and `key="pk_by"`.
+pub(crate) fn get_ident_attribute_by_key(
+    attrs: &[syn::Attribute],
+    name: &str,
+    key: &str,
+) -> Option<Ident> {
+    let mut val: Option<Ident> = None;
+    for attr in attrs.iter() {
+        if !attr.path().is_ident(name) {
+            continue;
+        }
+
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident(key) {
+                let value = meta.value()?; // this parses the `=`
+                let v: Ident = value.parse()?; // this parses `"val"`
+                val = Some(v);
+                return Ok(());
+            }
+            Err(meta.error("attribute value not found"))
+        })
+            .ok();
     }
     val
 }
@@ -156,7 +185,7 @@ pub(crate) fn is_updated_at(field: &Field) -> bool {
 ///
 /// Uses the `#[lorm(new="...")]` attribute if specified, otherwise defaults to `Type::new()`.
 pub(crate) fn get_new_method(field: &Field) -> TokenStream {
-    match get_attribute_by_key(&field.attrs, "lorm", "new") {
+    match get_string_attribute_by_key(&field.attrs, "lorm", "new") {
         None => {
             let class_token = field.ty.to_token_stream();
             quote! {
@@ -178,7 +207,7 @@ pub(crate) fn get_new_method(field: &Field) -> TokenStream {
 /// Uses the `#[lorm(is_set="...")]` attribute if specified, otherwise compares against `Type::default()`.
 pub(crate) fn get_is_set(field: &Field) -> TokenStream {
     let instance_field = field.ident.as_ref().unwrap();
-    match get_attribute_by_key(&field.attrs, "lorm", "is_set") {
+    match get_string_attribute_by_key(&field.attrs, "lorm", "is_set") {
         None => {
             let class_token = field.ty.to_token_stream();
             quote! {
@@ -200,7 +229,7 @@ pub(crate) fn get_is_set(field: &Field) -> TokenStream {
 /// Uses the `#[lorm(rename="...")]` attribute if specified, otherwise converts the struct name
 /// to table_case and pluralizes it (e.g., `UserDetail` becomes `user_details`).
 pub(crate) fn get_table_name(input: &DeriveInput) -> String {
-    let table_name = get_attribute_by_key(&input.attrs, "lorm", "rename");
+    let table_name = get_string_attribute_by_key(&input.attrs, "lorm", "rename");
     match table_name {
         None => {
             let table_name = input.ident.to_string().to_table_case();
@@ -220,7 +249,7 @@ pub(crate) enum PrimaryKeyType {
 ///
 /// Uses `#[lorm(pk_type = "...")]` is specified, otherwise ith defaults to [PrimaryKeyType::Generated].
 pub(crate) fn get_primary_key_type(input: &DeriveInput) -> PrimaryKeyType {
-    let primary_key_type = get_attribute_by_key(&input.attrs, "lorm", "pk_type");
+    let primary_key_type = get_string_attribute_by_key(&input.attrs, "lorm", "pk_type");
     if primary_key_type.is_none() {
         return PrimaryKeyType::Generated;
     }
@@ -234,12 +263,17 @@ pub(crate) fn get_primary_key_type(input: &DeriveInput) -> PrimaryKeyType {
     }
 }
 
+pub(crate) fn get_primary_key_by_ident(input: &DeriveInput) -> Ident {
+    let ident = get_ident_attribute_by_key(&input.attrs, "lorm", "pk_by");
+    ident.unwrap_or(format_ident!("by_key"))
+}
+
 /// Gets the database column name for a field.
 ///
 /// Uses the `#[lorm(rename="...")]` attribute if specified, otherwise converts the field name
 /// to snake_case (e.g., `userId` becomes `user_id`).
 pub fn get_field_name(field: &Field) -> String {
-    get_attribute_by_key(&field.attrs, "lorm", "rename")
+    get_string_attribute_by_key(&field.attrs, "lorm", "rename")
         .unwrap_or_else(|| field.ident.as_ref().unwrap().to_string().to_snake_case())
 }
 

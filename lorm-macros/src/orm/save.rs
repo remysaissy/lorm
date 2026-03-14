@@ -128,7 +128,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         .collect::<Vec<_>>()
         .join(",");
 
-    let pk_columns = model.primary_key.columns();
+    let pk_columns = model.primary_key.column_names();
 
     let upsert_sql_ident = format!(
         "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) ON CONFLICT ({pk_columns}) DO UPDATE SET {upsert_clause} RETURNING {table_columns}",

@@ -10,8 +10,9 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
     let table_name = &model.table_name;
 
     // Primary key
-    let primary_key_fields = model.primary_key.fields();
-    let pk_placeholder = primary_key_fields
+    let pk_placeholder = model
+        .primary_key
+        .fields()
         .iter()
         .enumerate()
         .map(|(i, f)| match db_placeholder(f, i + 1) {
@@ -23,14 +24,7 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
         })
         .collect::<Result<Vec<_>, syn::Error>>()?
         .join(" AND ");
-    let pk_columns = primary_key_fields
-        .iter()
-        .map(|f| {
-            f.ident.as_ref().ok_or_else(|| {
-                syn::Error::new(f.span(), "Primary key field must have an identifier.")
-            })
-        })
-        .collect::<Result<Vec<_>, syn::Error>>()?;
+    let pk_columns = model.primary_key.columns()?;
 
     let sql_ident = format!("DELETE FROM {} WHERE {}", table_name, pk_placeholder);
 

@@ -1,6 +1,6 @@
 use crate::utils::{
-    PrimaryKeyType, get_field_name, get_primary_key_type, get_table_name, is_by, is_created_at,
-    is_pk, is_readonly, is_skip, is_updated_at,
+    PrimaryKeyType, get_field_name, get_primary_key_by_ident, get_primary_key_type, get_table_name,
+    is_by, is_created_at, is_pk, is_readonly, is_skip, is_updated_at,
 };
 use std::slice;
 use syn::punctuated::Punctuated;
@@ -21,7 +21,19 @@ impl<'a> PrimaryKey<'a> {
         }
     }
 
-    pub fn columns(&self) -> String {
+    pub fn columns(&self) -> syn::Result<Vec<&'a Ident>> {
+        Ok(self
+            .fields()
+            .iter()
+            .map(|field| {
+                field.ident.as_ref().ok_or_else(|| {
+                    syn::Error::new(field.span(), "Primary key field must have an identifier.")
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn column_names(&self) -> String {
         self.fields()
             .iter()
             .map(|f| get_field_name(f))
@@ -60,6 +72,7 @@ pub(crate) struct OrmModel<'a> {
     pub(crate) insert_fields: Vec<&'a Field>,
     pub(crate) table_columns: String,
     pub(crate) primary_key: PrimaryKey<'a>,
+    pub(crate) primary_key_by_name: Ident,
     pub(crate) created_at_field: Option<&'a Field>,
     pub(crate) is_created_at_readonly: bool,
     pub(crate) updated_at_field: Option<&'a Field>,
@@ -79,8 +92,8 @@ impl<'a> OrmModel<'a> {
         let mut insert_fields: Vec<&Field> = vec![];
         let mut table_columns_vec: Vec<String> = vec![];
         let pk_type = get_primary_key_type(input);
+        let primary_key_by_name = get_primary_key_by_ident(input);
         let mut pk_fields: Vec<&Field> = vec![];
-        let mut is_pk_readonly = false;
         let mut created_at_field: Option<&Field> = None;
         let mut is_created_at_readonly = false;
         let mut updated_at_field: Option<&Field> = None;
@@ -104,7 +117,7 @@ impl<'a> OrmModel<'a> {
                         is_updated_at_readonly = true;
                     }
                 }
-                if is_by(field) || is_pk(field) && pk_type == PrimaryKeyType::Generated || is_created_at(field) || is_updated_at(field) {
+                if is_by(field) || is_created_at(field) || is_updated_at(field) {
                     by_fields.push(field);
                 }
                 if !is_readonly(field) {
@@ -114,6 +127,10 @@ impl<'a> OrmModel<'a> {
             }
         }
         let primary_key = PrimaryKey::from_type_and_fields(input, pk_type, pk_fields)?;
+        if primary_key.fields().len() == 1 {
+            let field = primary_key.fields().first().unwrap();
+            by_fields.push(field);
+        }
 
         Ok(Self {
             struct_name,
@@ -124,6 +141,7 @@ impl<'a> OrmModel<'a> {
             insert_fields,
             table_columns: table_columns_vec.join(","),
             primary_key,
+            primary_key_by_name,
             created_at_field,
             is_created_at_readonly,
             updated_at_field,
