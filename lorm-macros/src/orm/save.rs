@@ -99,12 +99,24 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         .upsert_fields
         .iter()
         .flat_map(|field| match field {
-            UpsertField::Field(f) if is_created_at_field(f) => vec![created_at_var.clone()],
-            UpsertField::Field(f) if is_updated_at_field(f) => vec![updated_at_var.clone()],
-            UpsertField::Field(f) if is_generated_pk_field(f) => vec![primary_key_var.clone()],
-            UpsertField::Field(f) => {
-                let ident = f.ident.as_ref();
-                vec![quote! {&self.#ident}]
+            UpsertField::Field { field, .. } if is_created_at_field(field) => {
+                vec![created_at_var.clone()]
+            }
+            UpsertField::Field { field, .. } if is_updated_at_field(field) => {
+                vec![updated_at_var.clone()]
+            }
+            UpsertField::Field { field, .. } if is_generated_pk_field(field) => {
+                vec![primary_key_var.clone()]
+            }
+            UpsertField::Field { field, use_json } => {
+                let ident = field.ident.as_ref();
+                let value = quote! {&self.#ident};
+                let value = if *use_json {
+                    quote! {sqlx::types::Json(#value)}
+                } else {
+                    value
+                };
+                vec![value]
             }
             UpsertField::Flattened(f, flattened_fields) => {
                 let field_ident = f.ident.as_ref();
@@ -126,7 +138,9 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     let upsert_clause = model
         .upsert_fields
         .iter()
-        .filter(|field| !matches!(field, UpsertField::Field(f) if is_created_at_field(f)))
+        .filter(
+            |field| !matches!(field, UpsertField::Field{field, ..} if is_created_at_field(field)),
+        )
         .flat_map(|f| f.column_names())
         .map(|column_name| format!("{column_name} = excluded.{column_name}"))
         .collect::<Vec<_>>()

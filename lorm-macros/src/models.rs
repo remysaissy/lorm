@@ -71,21 +71,21 @@ pub(crate) struct FlattenedField {
 }
 
 pub(crate) enum UpsertField<'a> {
-    Field(&'a Field),
+    Field { field: &'a Field, use_json: bool },
     Flattened(&'a Field, Vec<FlattenedField>),
 }
 
 impl<'a> UpsertField<'a> {
     pub(crate) fn base(&self) -> &'a Field {
         match self {
-            UpsertField::Field(f) => f,
+            UpsertField::Field { field, .. } => field,
             UpsertField::Flattened(f, _) => f,
         }
     }
 
     pub(crate) fn column_names(&self) -> Vec<String> {
         match self {
-            Self::Field(field) => vec![get_column_name(field)],
+            Self::Field { field, .. } => vec![get_column_name(field)],
             Self::Flattened(_, flattened_fields) => flattened_fields
                 .iter()
                 .map(|flattened| flattened.column.clone())
@@ -240,7 +240,9 @@ fn process_field<'a>(
         by_fields.push(field);
     }
     if !is_readonly(field) {
-        upsert_fields.push(UpsertField::Field(field));
+        let use_json = has_attribute_value(&field.attrs, "sqlx", "json");
+
+        upsert_fields.push(UpsertField::Field { field, use_json });
     }
 }
 
