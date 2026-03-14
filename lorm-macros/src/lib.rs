@@ -66,6 +66,7 @@ mod utils;
     attributes(
         lorm,
         // lorm(pk),
+        // lorm(pk_type),
         // lorm(by),
         // lorm(skip),
         // lorm(readonly),
@@ -74,6 +75,9 @@ mod utils;
         // lorm(rename="name"),
         // lorm(created_at),
         // lorm(updated_at),
+
+        // also uses:
+        // sqlx(rename)
     )
 )]
 pub fn sql_derive_to_orm(input: TokenStream) -> TokenStream {
