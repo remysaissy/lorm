@@ -1,5 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::{get_bind_type_constraint, get_field_name};
+use crate::utils::{get_bind_type_constraint, get_column_name};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_select(
@@ -17,7 +17,7 @@ pub fn generate_select(
     let impl_tokens: Vec<TokenStream> = model.by_fields.iter().map(|field| {
         let field_ident = field.ident.as_ref().unwrap();
         let field_type_constraints = get_bind_type_constraint(field, database_type).unwrap();
-        let field_name = get_field_name(field);
+        let field_name = get_column_name(field);
         let where_between_fn = format_ident!("where_between_{}", field_ident);
         let where_fn = format_ident!("where_{}", field_ident);
         let having_fn = format_ident!("having_{}", field_ident);

@@ -1,5 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::{db_placeholder, get_bind_type_constraint, get_field_name};
+use crate::utils::{db_placeholder, get_bind_type_constraint, get_column_name};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_with(
@@ -15,7 +15,7 @@ pub fn generate_with(
 
     let stream: Vec<(TokenStream, TokenStream)> = model.by_fields.iter().map(|field| {
         let field_ident = field.ident.as_ref().unwrap();
-        let field_name = get_field_name(field);
+        let field_name = get_column_name(field);
         let field_type_constraints = get_bind_type_constraint(field, database_type).unwrap();
         let with_fn = format_ident!("with_{}",field_ident);
         let placeholder = db_placeholder(field, 1).unwrap();

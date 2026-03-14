@@ -1,7 +1,8 @@
+use crate::models::UpsertField;
 use inflector::Inflector;
-use quote::{__private::TokenStream, ToTokens, quote, format_ident};
+use quote::{__private::TokenStream, ToTokens, format_ident, quote};
 use syn::spanned::Spanned;
-use syn::{DeriveInput, Expr, Field, LitStr, PathArguments, Type, parse, Ident};
+use syn::{DeriveInput, Expr, Field, Ident, LitStr, PathArguments, Type, parse};
 
 /// Checks if an attribute with the given name and value exists on the field.
 ///
@@ -78,7 +79,7 @@ pub(crate) fn get_ident_attribute_by_key(
             }
             Err(meta.error("attribute value not found"))
         })
-            .ok();
+        .ok();
     }
     val
 }
@@ -272,7 +273,7 @@ pub(crate) fn get_primary_key_by_ident(input: &DeriveInput) -> Ident {
 ///
 /// Uses the `#[sqlx(rename="...")]` attribute if specified, otherwise keeps the field name as is (sqlx default).
 /// It does not support `#[sqlx(rename_all = "...")]`.
-pub fn get_field_name(field: &Field) -> String {
+pub fn get_column_name(field: &Field) -> String {
     get_string_attribute_by_key(&field.attrs, "sqlx", "rename")
         .unwrap_or_else(|| field.ident.as_ref().unwrap().to_string())
 }
@@ -280,11 +281,12 @@ pub fn get_field_name(field: &Field) -> String {
 /// Creates SQL placeholders for INSERT statements.
 ///
 /// Generates database-specific placeholders: `"$1, $2, $3"` for PostgreSQL/SQLite or `"?, ?, ?"` for MySQL.
-pub(crate) fn create_insert_placeholders(fields: &[&Field]) -> String {
+pub(crate) fn create_insert_placeholders(fields: &[UpsertField]) -> String {
     fields
         .iter()
+        .flat_map(|f| f.column_names().into_iter().map(|name| (f.base(), name)))
         .enumerate()
-        .map(|(i, f)| db_placeholder(f, i + 1).unwrap())
+        .map(|(i, (f, name))| db_placeholder(f, i + 1).unwrap())
         .collect::<Vec<_>>()
         .join(",")
 }

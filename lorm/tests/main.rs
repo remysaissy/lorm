@@ -2,12 +2,11 @@ use anyhow::Result;
 use chrono::FixedOffset;
 use fake::Fake;
 use fake::faker::internet::en::SafeEmail;
-use log::log;
 use lorm::ToLOrm;
 use lorm::predicates::{Function, Having, Where};
 use sqlx::migrate::MigrateDatabase;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::{ConnectOptions, Executor, FromRow, Sqlite, SqliteConnection, SqlitePool};
+use sqlx::{ConnectOptions, Executor, FromRow, Sqlite, SqlitePool};
 use std::ops::Add;
 use std::str::FromStr;
 use std::time::Duration;
@@ -62,9 +61,16 @@ struct AltUser {
     #[lorm(readonly)]
     pub created_at: chrono::DateTime<FixedOffset>,
 
+    #[allow(unused)]
     #[lorm(updated_at)]
     #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub updated_at: chrono::DateTime<FixedOffset>,
+}
+
+#[derive(Debug, Default, Clone, FromRow, PartialEq, Eq, Hash)]
+struct PairingScore {
+    #[sqlx(rename = "score_value")]
+    value: i32,
 }
 
 #[derive(Debug, Default, Clone, FromRow, ToLOrm, PartialEq, Eq, Hash)]
@@ -74,7 +80,9 @@ struct Pairing {
     pub user1: i32,
     #[lorm(pk)]
     pub user2: i32,
-    pub score: i32,
+    #[sqlx(flatten)]
+    #[lorm(flattened = (value = "score_value"))]
+    pub score: PairingScore,
 }
 
 pub async fn get_conn(pool: SqlitePool) -> SqlitePool {
@@ -193,7 +201,7 @@ async fn test_pairing_is_created() {
     let pairing = Pairing {
         user1: 1,
         user2: 2,
-        score: 3,
+        score: PairingScore { value: 3 },
     };
     let p = pairing.save(&pool).await.unwrap();
     assert_eq!(pairing, p);
@@ -392,7 +400,7 @@ async fn create_pairings<'e, E: sqlx::SqliteExecutor<'e> + Copy>(
         let p = Pairing {
             user1: i,
             user2: i * 2,
-            score: i * 3,
+            score: PairingScore { value: i * 3 },
         };
         let p = p.save(conn).await.unwrap();
         pairings.push(p);

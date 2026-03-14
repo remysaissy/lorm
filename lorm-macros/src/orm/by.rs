@@ -1,6 +1,6 @@
 use crate::models::{OrmModel, PrimaryKey};
 use crate::utils::{
-    db_placeholder, get_bind_type_constraint, get_field_name,
+    db_placeholder, get_bind_type_constraint, get_column_name,
 };
 use quote::{__private::TokenStream, format_ident, quote};
 
@@ -18,7 +18,7 @@ pub fn generate_by(
     let stream: Vec<(TokenStream, TokenStream)> = model.by_fields.iter().map(|field| {
         let field_ident = field.ident.as_ref().unwrap();
         let field_type_constraints = get_bind_type_constraint(field, database_type).unwrap();
-        let field_name = get_field_name(field);
+        let field_name = get_column_name(field);
         let by_fn = format_ident!("by_{}",field_ident);
         let placeholder = db_placeholder(field, 1).unwrap();
         let sql_ident = format!("SELECT {} FROM {} WHERE {} = {}", table_columns, table_name, field_name, placeholder);
@@ -80,7 +80,7 @@ pub fn generate_by(
                         .enumerate()
                         .map(|(i, field)| {
                             db_placeholder(field, i + 1).map(|placeholder| {
-                                let field_name = get_field_name(field);
+                                let field_name = get_column_name(field);
                                 format!("{field_name} = {placeholder}")
                             })
                         })

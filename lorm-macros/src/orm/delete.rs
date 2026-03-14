@@ -1,5 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::{db_placeholder, get_field_name};
+use crate::utils::{db_placeholder, get_column_name};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
@@ -16,7 +16,7 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
         .enumerate()
         .map(|(i, f)| match db_placeholder(f, i + 1) {
             Ok(placeholder) => {
-                let field_name = get_field_name(f);
+                let field_name = get_column_name(f);
                 Ok(format!("{field_name} = {placeholder}"))
             }
             Err(e) => Err(e),

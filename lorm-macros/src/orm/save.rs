@@ -1,8 +1,6 @@
 use crate::models::PrimaryKey::{Generated, Manual};
-use crate::models::OrmModel;
-use crate::utils::{
-    create_insert_placeholders, get_field_name, get_is_set, get_new_method, is_readonly,
-};
+use crate::models::{OrmModel, UpsertField};
+use crate::utils::{create_insert_placeholders, get_is_set, get_new_method, is_readonly};
 use quote::{__private::TokenStream, format_ident, quote};
 use syn::spanned::Spanned;
 
@@ -95,21 +93,29 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     let insert_columns_vec: Vec<String> = model
         .upsert_fields
         .iter()
-        .map(|field| get_field_name(field))
+        .flat_map(|field| field.column_names())
         .collect();
     let insert_values: Vec<_> = model
         .upsert_fields
         .iter()
-        .map(|field| {
-            if is_created_at_field(field) {
-                created_at_var.clone()
-            } else if is_updated_at_field(field) {
-                updated_at_var.clone()
-            } else if is_generated_pk_field(field) {
-                primary_key_var.clone()
-            } else {
-                let ident = field.ident.as_ref();
-                quote! {&self.#ident}
+        .flat_map(|field| match field {
+            UpsertField::Field(f) if is_created_at_field(f) => vec![created_at_var.clone()],
+            UpsertField::Field(f) if is_updated_at_field(f) => vec![updated_at_var.clone()],
+            UpsertField::Field(f) if is_generated_pk_field(f) => vec![primary_key_var.clone()],
+            UpsertField::Field(f) => {
+                let ident = f.ident.as_ref();
+                vec![quote! {&self.#ident}]
+            }
+            UpsertField::Flattened(f, flattened_fields) => {
+                let field_ident = f.ident.as_ref();
+                let base = quote! {&self.#field_ident};
+                flattened_fields
+                    .iter()
+                    .map(|flattened| {
+                        let field = &flattened.field;
+                        quote! {#base.#field}
+                    })
+                    .collect()
             }
         })
         .collect();
@@ -120,11 +126,9 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     let upsert_clause = model
         .upsert_fields
         .iter()
-        .filter(|f| !is_created_at_field(f))
-        .map(|f| {
-            let field_name = get_field_name(f);
-            format!("{field_name} = excluded.{field_name}")
-        })
+        .filter(|field| !matches!(field, UpsertField::Field(f) if is_created_at_field(f)))
+        .flat_map(|f| f.column_names())
+        .map(|column_name| format!("{column_name} = excluded.{column_name}"))
         .collect::<Vec<_>>()
         .join(",");
 
