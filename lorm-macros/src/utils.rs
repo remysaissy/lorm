@@ -289,25 +289,6 @@ pub(crate) fn create_insert_placeholders(fields: &[&Field]) -> String {
         .join(",")
 }
 
-/// Creates SQL placeholders for UPDATE statements.
-///
-/// Generates database-specific SET clauses: `"name = $1, email = $2"` for PostgreSQL/SQLite
-/// or `"name = ?, email = ?"` for MySQL.
-pub(crate) fn create_update_placeholders(fields: &[&Field]) -> String {
-    fields
-        .iter()
-        .enumerate()
-        .map(|(i, f)| {
-            format!(
-                "{} = {}",
-                get_field_name(f),
-                db_placeholder(f, i + 1).unwrap()
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(",")
-}
-
 /// Generates a database-specific placeholder for a single field.
 ///
 /// Returns `"$n"` for PostgreSQL/SQLite or `"?"` for MySQL, where n is the index.

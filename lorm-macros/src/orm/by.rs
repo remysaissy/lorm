@@ -1,9 +1,8 @@
 use crate::models::{OrmModel, PrimaryKey};
 use crate::utils::{
-    db_placeholder, get_bind_type_constraint, get_field_name, get_primary_key_by_ident,
+    db_placeholder, get_bind_type_constraint, get_field_name,
 };
 use quote::{__private::TokenStream, format_ident, quote};
-use syn::spanned::Spanned;
 
 pub fn generate_by(
     executor_type: &TokenStream,
@@ -39,7 +38,7 @@ pub fn generate_by(
     }).collect::<Vec<(_, _)>>();
     let primary_key_by: Box<dyn Iterator<Item = (TokenStream, TokenStream)>> = Box::new(
         match &model.primary_key {
-            PrimaryKey::Generated(field) => None.into_iter(),
+            PrimaryKey::Generated(..) => None.into_iter(),
             PrimaryKey::Manual(fields) => {
                 if fields.len() > 1 {
                     let by_fn_name = &model.primary_key_by_name;

@@ -1,7 +1,6 @@
 use crate::models::OrmModel;
 use crate::utils::{db_placeholder, get_field_name};
 use quote::{__private::TokenStream, format_ident, quote};
-use syn::spanned::Spanned;
 
 pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let trait_ident = format_ident!("{}DeleteTrait", model.struct_name);

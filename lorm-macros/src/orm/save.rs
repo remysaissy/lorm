@@ -1,5 +1,5 @@
 use crate::models::PrimaryKey::{Generated, Manual};
-use crate::models::{OrmModel, PrimaryKey};
+use crate::models::OrmModel;
 use crate::utils::{
     create_insert_placeholders, get_field_name, get_is_set, get_new_method, is_readonly,
 };

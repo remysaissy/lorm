@@ -23,15 +23,14 @@ impl<'a> PrimaryKey<'a> {
     }
 
     pub fn columns(&self) -> syn::Result<Vec<&'a Ident>> {
-        Ok(self
-            .fields()
+        self.fields()
             .iter()
             .map(|field| {
                 field.ident.as_ref().ok_or_else(|| {
                     syn::Error::new(field.span(), "Primary key field must have an identifier.")
                 })
             })
-            .collect::<Result<Vec<_>, _>>()?)
+            .collect::<Result<Vec<_>, _>>()
     }
 
     pub fn column_names(&self) -> String {
@@ -53,7 +52,7 @@ impl<'a> PrimaryKey<'a> {
                 let field = fields
                     .pop()
                     .ok_or_else(|| syn::Error::new(input.ident.span(), error))?;
-                if fields.len() > 0 {
+                if !fields.is_empty() {
                     return Err(syn::Error::new(field.span(), error));
                 }
 
