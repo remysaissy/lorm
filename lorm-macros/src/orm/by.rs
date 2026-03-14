@@ -1,8 +1,9 @@
 use crate::models::{OrmModel, PrimaryKey};
 use crate::utils::{
-    db_placeholder, get_bind_type_constraint, get_column_name,
+    db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint, get_column_name,
 };
 use quote::{__private::TokenStream, format_ident, quote};
+use syn::spanned::Spanned;
 
 pub fn generate_by(
     executor_type: &TokenStream,
@@ -17,19 +18,28 @@ pub fn generate_by(
 
     let stream: Vec<(TokenStream, TokenStream)> = model.by_fields.iter().map(|field| {
         let field_ident = field.ident.as_ref().unwrap();
-        let field_type_constraints = get_bind_type_constraint(field, database_type).unwrap();
+
+        let lifetime = quote! {'a};
+        let parameter = quote! {value};
+        let field_type_constraints = get_bind_type_where_constraint(field, database_type, &lifetime).unwrap();
+        let (param_type, param_value) = get_bind_param_type_and_usage(&parameter, field, &lifetime).unwrap();
         let field_name = get_column_name(field);
         let by_fn = format_ident!("by_{}",field_ident);
         let placeholder = db_placeholder(field, 1).unwrap();
         let sql_ident = format!("SELECT {} FROM {} WHERE {} = {}", table_columns, table_name, field_name, placeholder);
+
+        let signature = quote! {
+            async fn #by_fn<#lifetime>(executor: E, #parameter: #param_type) -> lorm::errors::Result<#struct_name> where #field_type_constraints
+        };
+
         let trait_code = quote! {
-            async fn #by_fn<T: #field_type_constraints>(executor: E, value: T) -> lorm::errors::Result<#struct_name>;
+            #signature;
         };
 
         let impl_code = quote! {
-            async fn #by_fn<T: #field_type_constraints>(executor: E, value: T) -> lorm::errors::Result<#struct_name> {
+            #signature {
                 let r = sqlx::query_as::<_, #struct_name>(#sql_ident)
-                    .bind(value)
+                    .bind(#param_value)
                     .fetch_one(executor).await?;
                 Ok(r)
             }
@@ -42,38 +52,40 @@ pub fn generate_by(
             PrimaryKey::Manual(fields) => {
                 if fields.len() > 1 {
                     let by_fn_name = &model.primary_key_by_name;
-                    let type_var_idents = (0..fields.len())
-                        .map(|i| format_ident!("T{}", i))
-                        .collect::<Vec<_>>();
+                    let lifetime = quote! {'a};
 
                     let type_constraints = fields
                         .iter()
                         .enumerate()
                         .map(|(i, field)| {
-                            get_bind_type_constraint(field, database_type).map(|constraint| {
-                                let type_var = &type_var_idents[i];
-                                quote! {
-                                    #type_var: #constraint
-                                }
-                            })
+                            get_bind_type_where_constraint(field, database_type, &lifetime)
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     let type_constraints = quote! { #(#type_constraints),* };
 
-                    let field_idents = model.primary_key.columns()?;
-
-                    let parameters = field_idents
+                    let (param_decl, param_usage): (Vec<_>, Vec<_>) = model
+                        .primary_key
+                        .fields()
                         .iter()
-                        .zip(type_var_idents.iter())
-                        .map(|(field, type_var)| {
-                            quote! {#field: #type_var}
+                        .map(|field| {
+                            (|| -> syn::Result<_> {
+                                let ident = field.ident.as_ref().ok_or_else(|| {
+                                    syn::Error::new(field.span(), "No ident for field")
+                                })?;
+                                let param = quote! {#ident};
+                                let (param_type, usage) =
+                                    get_bind_param_type_and_usage(&param, field, &lifetime)?;
+                                Ok((quote! {#ident: #param_type}, usage))
+                            })()
                         })
-                        .collect::<Vec<_>>();
-                    let parameters = quote! { #(#parameters),* };
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_iter()
+                        .unzip();
 
-                    let trait_code = quote! {
-                        async fn #by_fn_name<#type_constraints>(executor: E, #parameters) -> lorm::errors::Result<#struct_name>;
-                    };
+                    let parameters = quote! { #(#param_decl),* };
+
+                    let signature = quote! {async fn #by_fn_name<#lifetime>(executor: E, #parameters) -> lorm::errors::Result<#struct_name> where #type_constraints};
+                    let trait_code = quote! {#signature;};
 
                     let where_clause = fields
                         .iter()
@@ -91,10 +103,10 @@ pub fn generate_by(
                         format!("SELECT {table_columns} FROM {table_name} WHERE {where_clause}");
 
                     let impl_code = quote! {
-                        async fn #by_fn_name<#type_constraints>(executor: E, #parameters) -> lorm::errors::Result<#struct_name> {
+                        #signature {
                             let r = sqlx::query_as::<_, #struct_name>(#sql_ident)
                                 #(
-                                .bind(#field_idents)
+                                .bind(#param_usage)
                                 )*
                                 .fetch_one(executor).await?;
                             Ok(r)

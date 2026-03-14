@@ -117,11 +117,14 @@ pub(crate) fn is_primitive_type(ty: &Type) -> bool {
     }
 }
 
-/// Returns the type without reference, unwrapping it from an `Option<>` if present.
+/// Convert the type into the type that the db columns have. This does two things:
 ///
-/// For example, `Option<&String>` becomes `String`, and `&i32` becomes `i32`.
-pub(crate) fn get_type_without_reference(ty: &Type) -> syn::Result<Type> {
-    match ty {
+/// - Returns the type without its `Option<>` wrapper if present.
+/// - Converts `String` to `&str`.
+///
+/// For example, `Option<String>` becomes `String`, and `Option<i32>` becomes `i32`.
+pub(crate) fn to_column_type(ty: &Type) -> syn::Result<Type> {
+    let res = match ty {
         Type::Path(type_path) => {
             let last_segment = type_path
                 .path
@@ -135,14 +138,23 @@ pub(crate) fn get_type_without_reference(ty: &Type) -> syn::Result<Type> {
                 && let PathArguments::AngleBracketed(angle_bracketed) = &last_segment.arguments
                 && let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first()
             {
-                return get_type_without_reference(inner_type);
+                inner_type
+            } else {
+                ty
             }
-
-            // Always return the type without reference
-            parse(ty.into_token_stream().into())
         }
-        _ => parse(ty.into_token_stream().into()),
+        _ => ty,
+    };
+
+    if let Type::Path(type_path) = res
+        && let Some(last_segment) = type_path.path.segments.last()
+        && last_segment.ident == "String"
+    {
+        return parse(quote::quote! { str }.into());
     }
+
+    // This is a clone in disguise as `Type` doesn't implement `Clone`
+    parse(res.into_token_stream().into())
 }
 
 /// Checks if a field is marked to be skipped with `#[lorm(skip)]` or `#[sqlx(skip)]`.
@@ -357,25 +369,48 @@ fn is_string_type(ty: &Type) -> bool {
     }
 }
 
-/// Generates the type constraints needed for binding a field value to SQLx queries.
+/// Generates the type constraints for the `where` clause needed for binding a field value to SQLx queries.
 ///
-/// Returns different trait bounds depending on whether the field is a primitive type or complex type.
-/// For primitives, uses `Encode` and `Type` traits. For complex types, also includes `Into` or `AsRef`.
-pub(crate) fn get_bind_type_constraint(
+/// These constraints are that the field type implements `sqlx::Encode` and `sqlx::Type` for the specific database type.
+/// Field types that are wrapped with an [Option] are stripped of it.
+pub(crate) fn get_bind_type_where_constraint(
     field: &Field,
     database_type: &TokenStream,
+    encode_lifetime: &TokenStream,
 ) -> syn::Result<TokenStream> {
-    let field_type = get_type_without_reference(&field.ty)?;
-    if is_primitive_type(&field.ty) {
-        Ok(quote! { 'static + sqlx::Encode<'static, #database_type> + sqlx::Type<#database_type> })
+    let base_type = to_column_type(&field.ty)?;
+    let constraints = vec![
+        quote! {sqlx::Encode<#encode_lifetime, #database_type>},
+        quote! {sqlx::Type<#database_type>},
+    ];
+    let col_type = if is_primitive_type(&base_type) {
+        base_type
     } else {
-        let as_ref = if is_string_type(&field_type) || is_primitive_type(&field_type) {
-            quote! { std::convert::Into<#field_type> }
-        } else {
-            quote! { std::convert::AsRef<#field_type> }
-        };
-        Ok(
-            quote! { 'static + sqlx::Encode<'static, #database_type> + sqlx::Type<#database_type> + #as_ref },
+        parse(quote::quote! { &#encode_lifetime #base_type }.into())?
+    };
+    let x = quote! {#col_type: #(#constraints)+*};
+    Ok(x)
+}
+
+/// Generates the type for the bind parameter and its usage.
+///
+/// For primitive types and stringy types (String and str), the parameter is of type `impl Into<...>`, for all other types it uses `impl Borrow<...>`.
+pub(crate) fn get_bind_param_type_and_usage(
+    param: &TokenStream,
+    field: &Field,
+    encode_lifetime: &TokenStream,
+) -> syn::Result<(TokenStream, TokenStream)> {
+    let base_type = to_column_type(&field.ty)?;
+    let res = if is_primitive_type(&base_type) {
+        (
+            quote! {impl std::convert::Into<#base_type>},
+            quote! {#param.into()},
         )
-    }
+    } else {
+        (
+            quote! {&#encode_lifetime (impl std::borrow::Borrow<#base_type> + ?Sized)},
+            quote! {#param.borrow()},
+        )
+    };
+    Ok(res)
 }

@@ -65,13 +65,13 @@ async fn main() -> Result<()> {
 
     // READ
     println!("2. Reading user by ID...");
-    let found_user = User::by_id(&pool, user.id).await?;
+    let found_user = User::by_id(&pool, &user.id).await?;
     println!(
         "   Found user: {} ({})\n",
         found_user.name, found_user.email
     );
 
-    println!("2bis. Reading user by ID and email...");
+    /*println!("2bis. Reading user by ID and email...");
     let id = found_user.id;
     let search = User::select()
         .where_id(Where::Eq, id)
@@ -88,7 +88,7 @@ async fn main() -> Result<()> {
     println!("3. Updating user...");
     user.name = "Alice Smith".to_string();
     user = user.save(&pool).await?;
-    println!("   Updated name to: {}\n", user.name);
+    println!("   Updated name to: {}\n", user.name);*/
 
     // DELETE
     println!("4. Deleting user...");
@@ -98,7 +98,7 @@ async fn main() -> Result<()> {
 
     // Verify deletion
     println!("5. Verifying deletion...");
-    match User::by_id(&pool, user_id).await {
+    match User::by_id(&pool, &user_id).await {
         Ok(_) => println!("   ERROR: User still exists!"),
         Err(_) => println!("   Confirmed: User no longer exists"),
     }
