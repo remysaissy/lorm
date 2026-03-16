@@ -51,7 +51,7 @@ pub(crate) fn is_option_wrapped(ty: &Type) -> bool {
             // Check for Option types and recurse
             if ident == "Option"
                 && let PathArguments::AngleBracketed(angle_bracketed) = &last_segment.arguments
-                && let Some(syn::GenericArgument::Type(inner_type)) = angle_bracketed.args.first()
+                && let Some(syn::GenericArgument::Type(_inner_type)) = angle_bracketed.args.first()
             {
                 true
             } else {

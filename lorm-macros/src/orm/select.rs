@@ -1,7 +1,6 @@
 use crate::models::OrmModel;
 use crate::utils::{get_bind_param_type_and_usage, get_bind_type_where_constraint};
 use quote::{__private::TokenStream, format_ident, quote};
-use syn::spanned::Spanned;
 
 pub fn generate_select(
     executor_type: &TokenStream,

@@ -1,8 +1,8 @@
 use crate::models::OrmModel;
 use crate::models::PrimaryKey::{Generated, Manual};
 use crate::utils::create_insert_placeholders;
-use quote::{__private::TokenStream, format_ident, quote};
-use syn::spanned::Spanned;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 
 pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let save_trait_ident = format_ident!("{}SaveTrait", model.struct_name);

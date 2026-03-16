@@ -5,7 +5,7 @@ use darling::{FromAttributes, FromDeriveInput, FromField, FromMeta};
 use inflector::Inflector;
 use proc_macro_error2::emit_error;
 use proc_macro2::Ident;
-use quote::{ToTokens, format_ident};
+use quote::format_ident;
 use std::vec;
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
@@ -65,6 +65,7 @@ pub struct SqlxColumnAttributes {
 
 #[derive(Debug, Default)]
 pub struct JsonOptions {
+    #[allow(unused)]
     pub nullable: bool,
 }
 
@@ -135,11 +136,11 @@ pub struct ColumnProperties {
 #[darling(attributes(lorm), forward_attrs(sqlx))]
 pub struct FieldAttributes {
     #[darling(flatten)]
-    pub field_properties: ColumnPropertyAttrs,
+    field_properties: ColumnPropertyAttrs,
 
     #[darling(with = "parse_sqlx_attrs")]
-    pub attrs: SqlxColumnAttributes,
-    pub flattened: Option<FlattenedFields>,
+    attrs: SqlxColumnAttributes,
+    flattened: Option<FlattenedFields>,
 }
 
 fn default_new_expression() -> Expr {
@@ -169,22 +170,21 @@ impl ColumnProperties {
         if (pk_type != PrimaryKeyType::Generated || !value.is_primary_key.is_present())
             && !value.is_updated_at.is_present()
             && !value.is_created_at.is_present()
+            && value.new_expression.is_some()
         {
-            if value.new_expression.is_some() {
-                emit_error!(
-                    field.span(),
-                    "The `is_set` attribute only makes sense on generated primary key fields."
-                );
-            }
+            emit_error!(
+                field.span(),
+                "The `is_set` attribute only makes sense on generated primary key fields."
+            );
         }
         // is_set_expression only makes sense on generated primary key fields
-        if pk_type != PrimaryKeyType::Generated || !value.is_primary_key.is_present() {
-            if value.is_set_expression.is_some() {
-                emit_error!(
-                    field.span(),
-                    "The `is_set` attribute only makes sense on generated primary key fields."
-                );
-            }
+        if (pk_type != PrimaryKeyType::Generated || !value.is_primary_key.is_present())
+            && value.is_set_expression.is_some()
+        {
+            emit_error!(
+                field.span(),
+                "The `is_set` attribute only makes sense on generated primary key fields."
+            );
         }
 
         ColumnProperties {
@@ -195,9 +195,7 @@ impl ColumnProperties {
             created_at: value.is_created_at.is_present(),
             updated_at: value.is_updated_at.is_present(),
             use_json: sqlx_attrs.is_json.is_some(),
-            new_expression: value
-                .new_expression
-                .unwrap_or_else(|| default_new_expression()),
+            new_expression: value.new_expression.unwrap_or_else(default_new_expression),
             is_set_expression: value.is_set_expression.map_or_else(
                 || default_is_set_expression(field),
                 |c| {

@@ -12,7 +12,7 @@ use syn::token::Comma;
 use syn::{DeriveInput, Field, Ident, Visibility, parse};
 
 pub(crate) enum PrimaryKey<'a> {
-    Generated(LogicalField<'a>),
+    Generated(Box<LogicalField<'a>>),
     Manual(Vec<LogicalField<'a>>),
 }
 
@@ -21,7 +21,7 @@ impl<'a> PrimaryKey<'a> {
         matches!(self, PrimaryKey::Generated(_))
     }
 
-    pub fn fields(&'a self) -> &[LogicalField<'a>] {
+    pub fn fields(&'a self) -> &'a [LogicalField<'a>] {
         match self {
             PrimaryKey::Generated(field) => slice::from_ref(field),
             PrimaryKey::Manual(fields) => fields,
@@ -29,7 +29,7 @@ impl<'a> PrimaryKey<'a> {
     }
 
     pub fn column_names(&self) -> impl Iterator<Item = &str> {
-        self.fields().into_iter().map(|f| f.column_name.as_str())
+        self.fields().iter().map(|f| f.column_name.as_str())
     }
 
     fn from_type_and_fields(
@@ -47,7 +47,7 @@ impl<'a> PrimaryKey<'a> {
                     return Err(syn::Error::new(field.base_field.span(), error));
                 }
 
-                Ok(PrimaryKey::Generated(field))
+                Ok(PrimaryKey::Generated(Box::new(field)))
             }
             PrimaryKeyType::Manual => Ok(PrimaryKey::Manual(fields)),
         }
