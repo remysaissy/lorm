@@ -40,7 +40,7 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
             async fn delete(&self, executor: E) -> lorm::errors::Result<()> {
                 sqlx::query(#sql_ident)
                 #(
-                    .bind(&self.#pk_values)
+                    .bind(#pk_values)
                 )*
                 .execute(executor).await?;
                 Ok(())

@@ -67,7 +67,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                     let #primary_key_var = if self.#pk_is_default_method {
                         &#pk_new_method
                     } else {
-                        &self.#accessor
+                        #accessor
                     };
                 }
             } else {
@@ -89,7 +89,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                 primary_key_var.clone()
             } else {
                 let accessor = field.self_accessor();
-                let value = quote! {&self.#accessor};
+                let value = quote! {#accessor};
                 if field.column_properties.use_json {
                     quote! {sqlx::types::Json(#value)}
                 } else {

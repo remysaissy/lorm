@@ -20,12 +20,12 @@ impl<'a> LogicalField<'a> {
         if self.is_flattened {
             let field_ident = &self.field;
             if is_option_wrapped(&self.base_field.ty) {
-                quote! {#base_ident.map(|base| &base.#field_ident)}
+                quote! {self.#base_ident.as_ref().map(|base| &base.#field_ident)}
             } else {
-                quote! {#base_ident.#field_ident}
+                quote! {&self.#base_ident.#field_ident}
             }
         } else {
-            quote! {#base_ident}
+            quote! {&self.#base_ident}
         }
     }
 
