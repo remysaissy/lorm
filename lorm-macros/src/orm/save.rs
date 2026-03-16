@@ -115,8 +115,26 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         .collect::<Vec<_>>()
         .join(",");
 
+    let is_full_key = {
+        let mut pk = model.primary_key.column_names().collect::<Vec<_>>();
+        pk.sort();
+        let mut cols = model
+            .fields
+            .iter()
+            .map(|f| f.column_name.as_str())
+            .collect::<Vec<_>>();
+        cols.sort();
+        pk == cols
+    };
+
+    let upsert_clause = if is_full_key {
+        "".to_string()
+    } else {
+        format!("ON CONFLICT ({pk_columns}) DO UPDATE SET {upsert_clause}")
+    };
+
     let upsert_sql_ident = format!(
-        "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) ON CONFLICT ({pk_columns}) DO UPDATE SET {upsert_clause} RETURNING {table_columns}",
+        "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) {upsert_clause} RETURNING {table_columns}",
     );
 
     Ok(quote! {
