@@ -49,7 +49,12 @@ impl<'a> PrimaryKey<'a> {
 
                 Ok(PrimaryKey::Generated(Box::new(field)))
             }
-            PrimaryKeyType::Manual => Ok(PrimaryKey::Manual(fields)),
+            PrimaryKeyType::Manual => {
+                if fields.is_empty() {
+                    emit_error!(input.span(), "At least one field must be marked with the #[lorm(pk)] attribute to form a manual primary key.");
+                }
+                Ok(PrimaryKey::Manual(fields))
+            },
         }
     }
 }
