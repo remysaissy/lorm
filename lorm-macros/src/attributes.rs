@@ -54,7 +54,7 @@ fn default_pk_type() -> PrimaryKeyType {
 }
 
 #[derive(Debug, FromAttributes)]
-#[darling(attributes(sqlx))]
+#[darling(attributes(sqlx), allow_unknown_fields)]
 pub struct SqlxColumnAttributes {
     #[darling(rename = "json")]
     pub is_json: Option<JsonOptions>,
