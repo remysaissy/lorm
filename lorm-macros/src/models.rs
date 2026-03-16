@@ -1,17 +1,15 @@
 use crate::attributes::{
-    ColumnProperties, FieldAttributes, FieldProperties, FlattenedField, PrimaryKeyType,
-    TableAttributes,
+    FieldAttributes, FieldProperties, FlattenedField, PrimaryKeyType, TableAttributes,
 };
-use crate::utils::is_option_wrapped;
+use crate::orm::logical_field::LogicalField;
 use darling::{FromDeriveInput, FromField};
 use proc_macro_error2::emit_error;
-use proc_macro2::TokenStream;
-use quote::{ToTokens, quote};
+use quote::ToTokens;
 use std::slice;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Comma;
-use syn::{DeriveInput, Field, Ident, Type, Visibility, parse};
+use syn::{DeriveInput, Field, Ident, Visibility, parse};
 
 pub(crate) enum PrimaryKey<'a> {
     Generated(LogicalField<'a>),
@@ -56,51 +54,13 @@ impl<'a> PrimaryKey<'a> {
     }
 }
 
-pub(crate) struct LogicalField<'a> {
-    pub(crate) base_field: &'a Field,
-    pub(crate) field: Ident,
-    pub(crate) ty: Type,
-    pub(crate) column_name: String,
-    pub(crate) is_flattened: bool,
-    pub(crate) column_properties: ColumnProperties,
-}
-
-impl<'a> LogicalField<'a> {
-    pub(crate) fn self_accessor(&self) -> TokenStream {
-        let base_ident = self.base_field.ident.as_ref().unwrap();
-        if self.is_flattened {
-            let field_ident = &self.field;
-            if is_option_wrapped(&self.base_field.ty) {
-                quote! {#base_ident.map(|base| &base.#field_ident)}
-            } else {
-                quote! {#base_ident.#field_ident}
-            }
-        } else {
-            quote! {#base_ident}
-        }
-    }
-}
-
-impl<'a> Clone for LogicalField<'a> {
-    fn clone(&self) -> Self {
-        LogicalField {
-            base_field: self.base_field,
-            field: self.field.clone(),
-            ty: parse((&self.ty).into_token_stream().into()).unwrap(),
-            column_name: self.column_name.clone(),
-            is_flattened: self.is_flattened,
-            column_properties: self.column_properties.clone(),
-        }
-    }
-}
-
 pub(crate) struct OrmModel<'a> {
     pub(crate) struct_name: &'a Ident,
     pub(crate) struct_visibility: &'a Visibility,
     pub(crate) table_name: String,
     pub(crate) fields: Vec<LogicalField<'a>>,
     pub(crate) primary_key: PrimaryKey<'a>,
-    pub(crate) primary_key_by_name: Ident,
+    pub(crate) primary_key_selector: Ident,
 }
 
 impl<'a> OrmModel<'a> {
@@ -115,7 +75,6 @@ impl<'a> OrmModel<'a> {
         let table_name = top_level_attributes.table_name(input);
         let mut logical_fields = vec![];
         let pk_type = top_level_attributes.pk_type;
-        let primary_key_by_name = top_level_attributes.primary_key_selector;
 
         for field in fields.iter() {
             logical_fields = process_struct_field(field, logical_fields, pk_type)?;
@@ -156,13 +115,15 @@ impl<'a> OrmModel<'a> {
         let pk_fields = pk_fields.into_iter().map(|f| f.clone()).collect();
         let primary_key = PrimaryKey::from_type_and_fields(input, pk_type, pk_fields)?;
 
+        let primary_key_selector = top_level_attributes.manual_primary_key_selector(&primary_key);
+
         Ok(Self {
             struct_name,
             struct_visibility,
             table_name,
             fields: logical_fields,
             primary_key,
-            primary_key_by_name,
+            primary_key_selector,
         })
     }
 

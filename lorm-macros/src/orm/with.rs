@@ -1,7 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::{
-    db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint,
-};
+use crate::utils::{db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint};
 use quote::{__private::TokenStream, format_ident, quote};
 use syn::spanned::Spanned;
 
@@ -16,7 +14,7 @@ pub fn generate_with(
     let table_name = &model.table_name;
     let table_columns = &model.full_select_columns();
 
-    let stream: Vec<(TokenStream, TokenStream)> = model.fields.iter().filter(|f| f.column_properties.generate_by).map(|field| (|| -> syn::Result<_> {
+    let stream: Vec<(TokenStream, TokenStream)> = model.fields.iter().filter(|f| f.should_generate_selector(&model.primary_key)).map(|field| (|| -> syn::Result<_> {
         let field_ident = &field.field;
         let column_name = &field.column_name;
 

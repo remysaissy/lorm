@@ -17,7 +17,7 @@ pub fn generate_select(
 
     let lifetime = quote! {'a};
 
-    let impl_tokens: Vec<TokenStream> = model.fields.iter().filter(|f| f.column_properties.generate_by).map(|field| (|| -> syn::Result<_> {
+    let impl_tokens: Vec<TokenStream> = model.fields.iter().filter(|f| f.should_generate_selector(&model.primary_key)).map(|field| (|| -> syn::Result<_> {
         let field_ident = &field.field;
 
         let constraints = get_bind_type_where_constraint(&field.ty, database_type, &lifetime)?;

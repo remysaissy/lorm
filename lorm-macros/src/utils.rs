@@ -1,6 +1,4 @@
-use crate::attributes::TableAttributes;
-use crate::models::LogicalField;
-use inflector::Inflector;
+use crate::orm::logical_field::LogicalField;
 use proc_macro2::Span;
 use quote::{__private::TokenStream, ToTokens, quote};
 use syn::spanned::Spanned;
@@ -102,17 +100,6 @@ pub(crate) fn to_column_type(ty: &Type) -> syn::Result<Type> {
 
     // This is a clone in disguise as `Type` doesn't implement `Clone`
     parse(res.into_token_stream().into())
-}
-
-impl TableAttributes {
-    /// Gets the specified table name from the `#[lorm(rename="...")]` attribute if specified, otherwise converts the struct name
-    /// to table_case and pluralizes it (e.g., `UserDetail` becomes `user_details`).
-    pub fn table_name(&self, input: &DeriveInput) -> String {
-        self.table_name_override.clone().unwrap_or_else(|| {
-            let table_case = input.ident.to_string().to_table_case();
-            pluralizer::pluralize(table_case.as_str(), 2, false)
-        })
-    }
 }
 
 /// Creates SQL placeholders for INSERT statements.

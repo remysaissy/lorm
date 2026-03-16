@@ -1,13 +1,15 @@
+use crate::models::PrimaryKey;
 use darling::ast::NestedMeta;
 use darling::util::{Callable, Flag};
 use darling::{FromAttributes, FromDeriveInput, FromField, FromMeta};
+use inflector::Inflector;
 use proc_macro_error2::emit_error;
 use proc_macro2::Ident;
 use quote::{ToTokens, format_ident};
 use std::vec;
 use syn::parse::{ParseStream, Parser};
 use syn::spanned::Spanned;
-use syn::{Attribute, Expr, Field, LitStr, Token, Type, parse};
+use syn::{Attribute, DeriveInput, Expr, Field, LitStr, Token, Type, parse};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromMeta)]
 pub enum PrimaryKeyType {
@@ -19,19 +21,36 @@ pub enum PrimaryKeyType {
 #[darling(attributes(lorm), supports(struct_named))]
 pub struct TableAttributes {
     #[darling(rename = "rename")]
-    pub table_name_override: Option<String>,
+    table_name_override: Option<String>,
     #[darling(default = default_pk_type)]
     pub pk_type: PrimaryKeyType,
-    #[darling(rename = "pk_selector", default = default_primary_key_selector)]
-    pub primary_key_selector: Ident,
+    #[darling(rename = "pk_selector")]
+    primary_key_selector: Option<Ident>,
+}
+
+impl TableAttributes {
+    /// Gets the specified table name from the `#[lorm(rename="...")]` attribute if specified, otherwise converts the struct name
+    /// to table_case and pluralizes it (e.g., `UserDetail` becomes `user_details`).
+    pub fn table_name(&self, input: &DeriveInput) -> String {
+        self.table_name_override.clone().unwrap_or_else(|| {
+            let table_case = input.ident.to_string().to_table_case();
+            pluralizer::pluralize(table_case.as_str(), 2, false)
+        })
+    }
+
+    pub fn manual_primary_key_selector(&self, pk: &PrimaryKey) -> Ident {
+        self.primary_key_selector.clone().unwrap_or_else(|| {
+            if let &[field] = &pk.fields() {
+                field.field.clone()
+            } else {
+                format_ident!("by_key")
+            }
+        })
+    }
 }
 
 fn default_pk_type() -> PrimaryKeyType {
     PrimaryKeyType::Generated
-}
-
-fn default_primary_key_selector() -> Ident {
-    format_ident!("by_key")
 }
 
 #[derive(Debug, FromAttributes)]
@@ -146,12 +165,6 @@ impl ColumnProperties {
         sqlx_attrs: &SqlxColumnAttributes,
         pk_type: PrimaryKeyType,
     ) -> Self {
-        // updated_at and created_at or being the field of a generated primary key imply generate_by
-        let generate_by = value.generate_by.is_present()
-            || value.is_updated_at.is_present()
-            || value.is_created_at.is_present()
-            || pk_type == PrimaryKeyType::Generated && value.is_primary_key.is_present();
-
         // new_expression only makes sense on generated primary key fields or the created_at and updated_at fields
         if (pk_type != PrimaryKeyType::Generated || !value.is_primary_key.is_present())
             && !value.is_updated_at.is_present()
@@ -178,7 +191,7 @@ impl ColumnProperties {
             skip: sqlx_attrs.skip.is_present(),
             readonly: value.readonly.is_present(),
             primary_key: value.is_primary_key.is_present(),
-            generate_by,
+            generate_by: value.generate_by.is_present(),
             created_at: value.is_created_at.is_present(),
             updated_at: value.is_updated_at.is_present(),
             use_json: sqlx_attrs.is_json.is_some(),
