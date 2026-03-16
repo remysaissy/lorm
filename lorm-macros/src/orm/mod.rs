@@ -56,6 +56,8 @@ pub fn expand_derive_to_orm_struct(
     let executor_type = executor_type(input)?;
     let database_type = database_type(input)?;
 
+    println!("Go model");
+
     let with_code = with::generate_with(&executor_type, &database_type, &model)?;
     let by_code = by::generate_by(&executor_type, &database_type, &model)?;
     let select_code = select::generate_select(&executor_type, &database_type, &model)?;

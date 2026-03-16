@@ -1,6 +1,6 @@
 use crate::models::{OrmModel, PrimaryKey};
 use crate::utils::{
-    db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint, get_column_name,
+    db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint,
 };
 use quote::{__private::TokenStream, format_ident, quote};
 use syn::spanned::Spanned;
@@ -14,19 +14,20 @@ pub fn generate_by(
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
     let table_name = &model.table_name;
-    let table_columns = &model.table_columns;
+    let all_columns = model.full_select_columns();
 
-    let stream: Vec<(TokenStream, TokenStream)> = model.by_fields.iter().map(|field| {
-        let field_ident = field.ident.as_ref().unwrap();
-
+    let stream: Vec<(TokenStream, TokenStream)> = model.fields.iter().filter(|field| field.column_properties.generate_by).map(|field| {
         let lifetime = quote! {'a};
         let parameter = quote! {value};
-        let field_type_constraints = get_bind_type_where_constraint(field, database_type, &lifetime).unwrap();
-        let (param_type, param_value) = get_bind_param_type_and_usage(&parameter, field, &lifetime).unwrap();
-        let field_name = get_column_name(field);
-        let by_fn = format_ident!("by_{}",field_ident);
-        let placeholder = db_placeholder(field, 1).unwrap();
-        let sql_ident = format!("SELECT {} FROM {} WHERE {} = {}", table_columns, table_name, field_name, placeholder);
+        let field_type_constraints = get_bind_type_where_constraint(&field.ty, database_type, &lifetime).unwrap();
+        let (param_type, param_value) = get_bind_param_type_and_usage(&parameter, &field.ty, &lifetime).unwrap();
+
+        let by_fn = format_ident!("by_{}",&field.field);
+        let placeholder = db_placeholder(field.base_field.span(), 1).unwrap();
+
+        let column_name = &field.column_name;
+
+        let sql_ident = format!("SELECT {all_columns} FROM {table_name} WHERE {column_name} = {placeholder}");
 
         let signature = quote! {
             async fn #by_fn<#lifetime>(executor: E, #parameter: #param_type) -> lorm::errors::Result<#struct_name> where #field_type_constraints
@@ -57,7 +58,7 @@ pub fn generate_by(
                     let type_constraints = fields
                         .iter()
                         .map(|field| {
-                            get_bind_type_where_constraint(field, database_type, &lifetime)
+                            get_bind_type_where_constraint(&field.ty, database_type, &lifetime)
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     let type_constraints = quote! { #(#type_constraints),* };
@@ -68,12 +69,10 @@ pub fn generate_by(
                         .iter()
                         .map(|field| {
                             (|| -> syn::Result<_> {
-                                let ident = field.ident.as_ref().ok_or_else(|| {
-                                    syn::Error::new(field.span(), "No ident for field")
-                                })?;
+                                let ident = &field.field;
                                 let param = quote! {#ident};
                                 let (param_type, usage) =
-                                    get_bind_param_type_and_usage(&param, field, &lifetime)?;
+                                    get_bind_param_type_and_usage(&param, &field.ty, &lifetime)?;
                                 Ok((quote! {#ident: #param_type}, usage))
                             })()
                         })
@@ -90,16 +89,16 @@ pub fn generate_by(
                         .iter()
                         .enumerate()
                         .map(|(i, field)| {
-                            db_placeholder(field, i + 1).map(|placeholder| {
-                                let field_name = get_column_name(field);
-                                format!("{field_name} = {placeholder}")
+                            db_placeholder(field.base_field.span(), i + 1).map(|placeholder| {
+                                let column_name = &field.column_name;
+                                format!("{column_name} = {placeholder}")
                             })
                         })
                         .collect::<Result<Vec<_>, _>>()?
                         .join(" AND ");
 
                     let sql_ident =
-                        format!("SELECT {table_columns} FROM {table_name} WHERE {where_clause}");
+                        format!("SELECT {all_columns} FROM {table_name} WHERE {where_clause}");
 
                     let impl_code = quote! {
                         #signature {

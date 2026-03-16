@@ -16,7 +16,7 @@ use uuid::Uuid;
 struct Account {
     #[lorm(pk)]
     #[lorm(new = "Uuid::new_v4()")]
-    #[lorm(is_set = "is_nil()")]
+    #[lorm(is_set = "is_nil")]
     pub id: Uuid,
 
     #[lorm(by)]

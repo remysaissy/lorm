@@ -24,6 +24,8 @@ quote = { workspace = true, features = ["proc-macro"] }
 syn = { workspace = true, features = ["proc-macro", "derive", "parsing", "printing", "extra-traits"] }
 pluralizer = { workspace = true }
 proc-macro-error2 = "2.0.1"
+proc-macro2 = "1.0.106"
+darling = "0.23.0"
 
 [features]
 default = ["sqlite"]

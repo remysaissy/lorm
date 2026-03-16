@@ -1,52 +1,43 @@
-use crate::utils::{
-    PrimaryKeyType, get_column_name, get_primary_key_by_ident, get_primary_key_type,
-    get_table_name, has_attribute_value, is_by, is_created_at, is_pk, is_readonly, is_skip,
-    is_updated_at,
+use crate::attributes::{
+    ColumnProperties, FieldAttributes, FieldProperties, FlattenedField, PrimaryKeyType,
+    TableAttributes,
 };
-use proc_macro_error2::{emit_error, emit_warning};
+use crate::utils::is_option_wrapped;
+use darling::{FromDeriveInput, FromField};
+use proc_macro_error2::emit_error;
+use proc_macro2::TokenStream;
+use quote::{ToTokens, quote};
 use std::slice;
-use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Comma;
-use syn::{DeriveInput, Field, Ident, LitStr, Token, Visibility};
+use syn::{DeriveInput, Field, Ident, Type, Visibility, parse};
 
 pub(crate) enum PrimaryKey<'a> {
-    Generated(&'a Field),
-    Manual(Vec<&'a Field>),
+    Generated(LogicalField<'a>),
+    Manual(Vec<LogicalField<'a>>),
 }
 
 impl<'a> PrimaryKey<'a> {
-    pub fn fields(&self) -> &[&'a Field] {
+    pub fn is_generated(&self) -> bool {
+        matches!(self, PrimaryKey::Generated(_))
+    }
+
+    pub fn fields(&'a self) -> &[LogicalField<'a>] {
         match self {
             PrimaryKey::Generated(field) => slice::from_ref(field),
             PrimaryKey::Manual(fields) => fields,
         }
     }
 
-    pub fn columns(&self) -> syn::Result<Vec<&'a Ident>> {
-        self.fields()
-            .iter()
-            .map(|field| {
-                field.ident.as_ref().ok_or_else(|| {
-                    syn::Error::new(field.span(), "Primary key field must have an identifier.")
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
-    }
-
-    pub fn column_names(&self) -> String {
-        self.fields()
-            .iter()
-            .map(|f| get_column_name(f))
-            .collect::<Vec<_>>()
-            .join(",")
+    pub fn column_names(&self) -> impl Iterator<Item = &str> {
+        self.fields().into_iter().map(|f| f.column_name.as_str())
     }
 
     fn from_type_and_fields(
         input: &'a DeriveInput,
         key_type: PrimaryKeyType,
-        mut fields: Vec<&'a Field>,
+        mut fields: Vec<LogicalField<'a>>,
     ) -> syn::Result<Self> {
         match key_type {
             PrimaryKeyType::Generated => {
@@ -55,7 +46,7 @@ impl<'a> PrimaryKey<'a> {
                     .pop()
                     .ok_or_else(|| syn::Error::new(input.ident.span(), error))?;
                 if !fields.is_empty() {
-                    return Err(syn::Error::new(field.span(), error));
+                    return Err(syn::Error::new(field.base_field.span(), error));
                 }
 
                 Ok(PrimaryKey::Generated(field))
@@ -65,31 +56,40 @@ impl<'a> PrimaryKey<'a> {
     }
 }
 
-pub(crate) struct FlattenedField {
+pub(crate) struct LogicalField<'a> {
+    pub(crate) base_field: &'a Field,
     pub(crate) field: Ident,
-    pub(crate) column: String,
+    pub(crate) ty: Type,
+    pub(crate) column_name: String,
+    pub(crate) is_flattened: bool,
+    pub(crate) column_properties: ColumnProperties,
 }
 
-pub(crate) enum UpsertField<'a> {
-    Field { field: &'a Field, use_json: bool },
-    Flattened(&'a Field, Vec<FlattenedField>),
-}
-
-impl<'a> UpsertField<'a> {
-    pub(crate) fn base(&self) -> &'a Field {
-        match self {
-            UpsertField::Field { field, .. } => field,
-            UpsertField::Flattened(f, _) => f,
+impl<'a> LogicalField<'a> {
+    pub(crate) fn self_accessor(&self) -> TokenStream {
+        let base_ident = self.base_field.ident.as_ref().unwrap();
+        if self.is_flattened {
+            let field_ident = &self.field;
+            if is_option_wrapped(&self.base_field.ty) {
+                quote! {#base_ident.map(|base| &base.#field_ident)}
+            } else {
+                quote! {#base_ident.#field_ident}
+            }
+        } else {
+            quote! {#base_ident}
         }
     }
+}
 
-    pub(crate) fn column_names(&self) -> Vec<String> {
-        match self {
-            Self::Field { field, .. } => vec![get_column_name(field)],
-            Self::Flattened(_, flattened_fields) => flattened_fields
-                .iter()
-                .map(|flattened| flattened.column.clone())
-                .collect(),
+impl<'a> Clone for LogicalField<'a> {
+    fn clone(&self) -> Self {
+        LogicalField {
+            base_field: self.base_field,
+            field: self.field.clone(),
+            ty: parse((&self.ty).into_token_stream().into()).unwrap(),
+            column_name: self.column_name.clone(),
+            is_flattened: self.is_flattened,
+            column_properties: self.column_properties.clone(),
         }
     }
 }
@@ -98,13 +98,9 @@ pub(crate) struct OrmModel<'a> {
     pub(crate) struct_name: &'a Ident,
     pub(crate) struct_visibility: &'a Visibility,
     pub(crate) table_name: String,
-    pub(crate) by_fields: Vec<&'a Field>,
-    pub(crate) upsert_fields: Vec<UpsertField<'a>>,
-    pub(crate) table_columns: String,
+    pub(crate) fields: Vec<LogicalField<'a>>,
     pub(crate) primary_key: PrimaryKey<'a>,
     pub(crate) primary_key_by_name: Ident,
-    pub(crate) created_at_field: Option<&'a Field>,
-    pub(crate) updated_at_field: Option<&'a Field>,
 }
 
 impl<'a> OrmModel<'a> {
@@ -112,174 +108,119 @@ impl<'a> OrmModel<'a> {
         input: &'a DeriveInput,
         fields: &'a Punctuated<Field, Comma>,
     ) -> syn::Result<Self> {
+        let top_level_attributes = TableAttributes::from_derive_input(input)?;
+
         let struct_name = &input.ident;
         let struct_visibility = &input.vis;
-        let table_name = get_table_name(input);
-        let mut by_fields = vec![];
-        let mut upsert_fields = vec![];
-        let mut table_columns = vec![];
-        let pk_type = get_primary_key_type(input);
-        let primary_key_by_name = get_primary_key_by_ident(input);
-        let mut pk_fields = vec![];
-        let mut created_at_field = None;
-        let mut updated_at_field = None;
+        let table_name = top_level_attributes.table_name(input);
+        let mut logical_fields = vec![];
+        let pk_type = top_level_attributes.pk_type;
+        let primary_key_by_name = top_level_attributes.primary_key_selector;
 
         for field in fields.iter() {
-            process_field(
-                field,
-                &mut table_columns,
-                &mut pk_fields,
-                &mut created_at_field,
-                &mut updated_at_field,
-                &mut by_fields,
-                &mut upsert_fields,
+            logical_fields = process_struct_field(field, logical_fields, pk_type)?;
+        }
+
+        let created_at_fields = logical_fields
+            .iter()
+            .filter(|field| field.column_properties.created_at)
+            .collect::<Vec<_>>();
+        if created_at_fields.len() > 1 {
+            let first = created_at_fields[0].base_field.span();
+            let second = created_at_fields[1].base_field.span();
+            let joined = first.join(second).unwrap();
+            emit_error!(
+                joined,
+                "Only one field can hold the #[lorm(created_at)] attribute."
             );
         }
-        let primary_key = PrimaryKey::from_type_and_fields(input, pk_type, pk_fields)?;
-        if primary_key.fields().len() == 1 {
-            let field = primary_key.fields().first().unwrap();
-            by_fields.push(field);
+
+        let updated_at_fields = logical_fields
+            .iter()
+            .filter(|field| field.column_properties.updated_at)
+            .collect::<Vec<_>>();
+        if updated_at_fields.len() > 1 {
+            let first = updated_at_fields[0].base_field.span();
+            let second = updated_at_fields[1].base_field.span();
+            let joined = first.join(second).unwrap();
+            emit_error!(
+                joined,
+                "Only one field can hold the #[lorm(created_at)] attribute."
+            );
         }
+
+        let pk_fields = logical_fields
+            .iter_mut()
+            .filter(|f| f.column_properties.primary_key)
+            .collect::<Vec<_>>();
+        let pk_fields = pk_fields.into_iter().map(|f| f.clone()).collect();
+        let primary_key = PrimaryKey::from_type_and_fields(input, pk_type, pk_fields)?;
 
         Ok(Self {
             struct_name,
             struct_visibility,
             table_name,
-            by_fields,
-            upsert_fields,
-            table_columns: table_columns.join(","),
+            fields: logical_fields,
             primary_key,
             primary_key_by_name,
-            created_at_field,
-            updated_at_field,
         })
+    }
+
+    pub(crate) fn full_select_columns(&self) -> String {
+        self.fields
+            .iter()
+            .map(|f| f.column_name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 
-fn process_field<'a>(
+fn process_struct_field<'a>(
     field: &'a Field,
-    table_columns: &mut Vec<String>,
-    primary_key_fields: &mut Vec<&'a Field>,
-    created_at: &mut Option<&'a Field>,
-    updated_at: &mut Option<&'a Field>,
-    by_fields: &mut Vec<&'a Field>,
-    upsert_fields: &mut Vec<UpsertField<'a>>,
-) {
-    if is_skip(field) {
-        return;
+    mut fields: Vec<LogicalField<'a>>,
+    pk_type: PrimaryKeyType,
+) -> syn::Result<Vec<LogicalField<'a>>> {
+    let properties = FieldProperties::from(field, FieldAttributes::from_field(field)?, pk_type);
+
+    if properties.column_properties.skip {
+        return Ok(fields);
     }
 
-    if has_attribute_value(&field.attrs, "sqlx", "flatten") {
-        let flattened_fields = get_flattened_names(&field.attrs);
+    let logical_fields: Box<dyn Iterator<Item = LogicalField<'a>>> =
+        match properties.flattened_fields {
+            Some(flattened) => Box::new(flattened.into_iter().map(
+                |FlattenedField {
+                     field_name,
+                     ty,
+                     column_name,
+                 }| LogicalField {
+                    base_field: field,
+                    field: field_name,
+                    ty,
+                    column_name,
+                    is_flattened: true,
+                    column_properties: properties.column_properties.clone(),
+                },
+            )),
+            None => {
+                let column_name = properties.column_name;
 
-        let Some(flattened_fields) = flattened_fields else {
-            emit_error!(
-                field.span(),
-                "On structs deriving ToLOrm, fields with the #[sqlx(flatten)] attribute require the #[lorm(flattened = ...)] attribute to specify what colums the field gets flattened to.",
-            );
-            return;
+                let logical_field = LogicalField {
+                    base_field: field,
+                    field: field.ident.clone().unwrap(),
+                    ty: parse((&field.ty).into_token_stream().into())?,
+                    is_flattened: false,
+                    column_name,
+                    column_properties: properties.column_properties,
+                };
+
+                Box::new(Some(logical_field).into_iter())
+            }
         };
 
-        table_columns.extend(
-            flattened_fields
-                .iter()
-                .map(|flattened| flattened.column.to_string()),
-        );
-        upsert_fields.push(UpsertField::Flattened(field, flattened_fields));
-
-        for value in ["pk", "created_at", "updated_at", "by", "readonly"] {
-            if has_attribute_value(&field.attrs, "lorm", value) {
-                emit_warning!(
-                    field.span(),
-                    "The #[lorm({value})] attribute has no effect on fields with the #[sqlx(flatten)] attribute. Remove the #[lorm({value})] attribute from this field.",
-                );
-            }
-        }
-
-        return;
-    } else if has_attribute_value(&field.attrs, "lorm", "flattened") {
-        emit_error!(
-            field.span(),
-            "#[lorm(flattened = ...)] should only be used on fields with the #[sqlx(flatten)] attribute. Remove the #[lorm(flattened = ...)] attribute from this field.",
-        );
+    for logical_field in logical_fields {
+        fields.push(logical_field);
     }
 
-    table_columns.push(get_column_name(field));
-    if is_pk(field) {
-        primary_key_fields.push(field);
-    }
-    if is_created_at(field) {
-        let previous = created_at.replace(field);
-        if let Some(previous) = previous {
-            emit_error!(
-                field.span(),
-                "Only one field can hold the #[lorm(created_at)] attribute. Also present on {}.",
-                previous
-                    .ident
-                    .as_ref()
-                    .map(|id| id.to_string())
-                    .unwrap_or_else(|| "unnamed field".to_string())
-            );
-        }
-    }
-    if is_updated_at(field) {
-        let previous = updated_at.replace(field);
-        if let Some(previous) = previous {
-            emit_error!(
-                field.span(),
-                "Only one field can hold the #[lorm(updated_at)] attribute. Also present on {}.",
-                previous
-                    .ident
-                    .as_ref()
-                    .map(|id| id.to_string())
-                    .unwrap_or_else(|| "unnamed field".to_string())
-            );
-        }
-    }
-    if is_by(field) || is_created_at(field) || is_updated_at(field) {
-        by_fields.push(field);
-    }
-    if !is_readonly(field) {
-        let use_json = has_attribute_value(&field.attrs, "sqlx", "json");
-
-        upsert_fields.push(UpsertField::Field { field, use_json });
-    }
-}
-
-impl syn::parse::Parse for FlattenedField {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let field: Ident = input.parse()?;
-
-        let column = if input.peek(Token![=]) {
-            input.parse::<Token![=]>()?;
-            input.parse::<LitStr>()?.value()
-        } else {
-            field.to_string()
-        };
-
-        Ok(FlattenedField { field, column })
-    }
-}
-
-fn get_flattened_names(attrs: &[syn::Attribute]) -> Option<Vec<FlattenedField>> {
-    let mut val: Option<_> = None;
-    for attr in attrs.iter() {
-        if !attr.path().is_ident("lorm") {
-            continue;
-        }
-
-        attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("flattened") {
-                let value = meta.value()?; // this parses the `=`
-
-                let names;
-                syn::parenthesized!(names in value);
-                let idents = Punctuated::<FlattenedField, Token![,]>::parse_terminated(&names)?;
-                val = Some(idents.into_iter().collect());
-            }
-            Err(meta.error("attribute value not found"))
-        })
-        .ok();
-    }
-    val
+    Ok(fields)
 }

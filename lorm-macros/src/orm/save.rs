@@ -1,6 +1,6 @@
+use crate::models::OrmModel;
 use crate::models::PrimaryKey::{Generated, Manual};
-use crate::models::{OrmModel, UpsertField};
-use crate::utils::{create_insert_placeholders, get_is_set, get_new_method, is_readonly};
+use crate::utils::create_insert_placeholders;
 use quote::{__private::TokenStream, format_ident, quote};
 use syn::spanned::Spanned;
 
@@ -9,17 +9,30 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
     let table_name = &model.table_name;
-    let table_columns = &model.table_columns;
+
+    let upsert_fields = model
+        .fields
+        .iter()
+        .filter(|field| !field.column_properties.readonly)
+        .collect::<Vec<_>>();
+
+    let table_columns = model.full_select_columns();
+    let insert_columns = upsert_fields
+        .iter()
+        .map(|field| field.column_name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
 
     // Created at
     let created_at_var = quote! {created_at};
-    let created_at_code = match model.created_at_field.as_ref() {
+    let created_at_field = model.fields.iter().find(|f| f.column_properties.created_at);
+    let created_at_code = match created_at_field {
         None => quote! {},
         Some(field) => {
-            if is_readonly(field) {
+            if field.column_properties.readonly {
                 quote! {}
             } else {
-                let new_method = get_new_method(field);
+                let new_method = &field.column_properties.new_expression;
                 quote! {
                     let #created_at_var = #new_method;
                 }
@@ -28,13 +41,14 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     };
     // Updated at
     let updated_at_var = quote! {updated_at};
-    let updated_at_code = match model.updated_at_field.as_ref() {
+    let updated_at_field = model.fields.iter().find(|f| f.column_properties.updated_at);
+    let updated_at_code = match updated_at_field {
         None => quote! {},
         Some(field) => {
-            if is_readonly(field) {
+            if field.column_properties.readonly {
                 quote! {}
             } else {
-                let new_method = get_new_method(field);
+                let new_method = &field.column_properties.new_expression;
                 quote! {
                     let #updated_at_var = #new_method;
                 }
@@ -43,19 +57,17 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     };
     // Primary key
     let primary_key_var = quote! {primary_key};
-    let pk_code = match model.primary_key {
+    let pk_code = match &model.primary_key {
         Generated(field) => {
-            if !is_readonly(field) {
-                let field_ident = field.ident.as_ref().ok_or_else(|| {
-                    syn::Error::new(field.span(), "Primary key field must have an identifier.")
-                })?;
-                let pk_is_default_method = get_is_set(field);
-                let pk_new_method = get_new_method(field);
+            if !field.column_properties.readonly {
+                let pk_is_default_method = &field.column_properties.is_set_expression;
+                let pk_new_method = &field.column_properties.new_expression;
+                let accessor = field.self_accessor();
                 quote! {
                     let #primary_key_var = if self.#pk_is_default_method {
                         &#pk_new_method
                     } else {
-                        &self.#field_ident
+                        &self.#accessor
                     };
                 }
             } else {
@@ -65,88 +77,43 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         Manual(..) => quote! {},
     };
 
-    let is_created_at_field = |field: &syn::Field| -> bool {
-        if let Some(created_at_field) = model.created_at_field {
-            field == created_at_field
-        } else {
-            false
-        }
-    };
-
-    let is_updated_at_field = |field: &syn::Field| -> bool {
-        if let Some(created_at_field) = model.updated_at_field {
-            field == created_at_field
-        } else {
-            false
-        }
-    };
-
-    let is_generated_pk_field = |field: &syn::Field| -> bool {
-        if let Generated(pk_field) = model.primary_key {
-            field == pk_field
-        } else {
-            false
-        }
-    };
-
     // prepare `insertable` fields
-    let insert_columns_vec: Vec<String> = model
-        .upsert_fields
+    let insert_values: Vec<_> = upsert_fields
         .iter()
-        .flat_map(|field| field.column_names())
-        .collect();
-    let insert_values: Vec<_> = model
-        .upsert_fields
-        .iter()
-        .flat_map(|field| match field {
-            UpsertField::Field { field, .. } if is_created_at_field(field) => {
-                vec![created_at_var.clone()]
-            }
-            UpsertField::Field { field, .. } if is_updated_at_field(field) => {
-                vec![updated_at_var.clone()]
-            }
-            UpsertField::Field { field, .. } if is_generated_pk_field(field) => {
-                vec![primary_key_var.clone()]
-            }
-            UpsertField::Field { field, use_json } => {
-                let ident = field.ident.as_ref();
-                let value = quote! {&self.#ident};
-                let value = if *use_json {
+        .map(|field| {
+            if field.column_properties.created_at {
+                created_at_var.clone()
+            } else if field.column_properties.updated_at {
+                updated_at_var.clone()
+            } else if field.column_properties.primary_key && model.primary_key.is_generated() {
+                primary_key_var.clone()
+            } else {
+                let accessor = field.self_accessor();
+                let value = quote! {&self.#accessor};
+                if field.column_properties.use_json {
                     quote! {sqlx::types::Json(#value)}
                 } else {
                     value
-                };
-                vec![value]
-            }
-            UpsertField::Flattened(f, flattened_fields) => {
-                let field_ident = f.ident.as_ref();
-                let base = quote! {&self.#field_ident};
-                flattened_fields
-                    .iter()
-                    .map(|flattened| {
-                        let field = &flattened.field;
-                        quote! {#base.#field}
-                    })
-                    .collect()
+                }
             }
         })
         .collect();
-    let insert_columns = insert_columns_vec.join(",");
-    let insert_value_placeholders = create_insert_placeholders(&model.upsert_fields);
+    let insert_value_placeholders = create_insert_placeholders(&upsert_fields);
 
     // find `updatable` fields and generate the set clause for upsert
-    let upsert_clause = model
-        .upsert_fields
+    let upsert_clause = upsert_fields
         .iter()
-        .filter(
-            |field| !matches!(field, UpsertField::Field{field, ..} if is_created_at_field(field)),
-        )
-        .flat_map(|f| f.column_names())
+        .filter(|field| !field.column_properties.created_at)
+        .map(|f| f.column_name.as_str())
         .map(|column_name| format!("{column_name} = excluded.{column_name}"))
         .collect::<Vec<_>>()
         .join(",");
 
-    let pk_columns = model.primary_key.column_names();
+    let pk_columns = model
+        .primary_key
+        .column_names()
+        .collect::<Vec<_>>()
+        .join(",");
 
     let upsert_sql_ident = format!(
         "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) ON CONFLICT ({pk_columns}) DO UPDATE SET {upsert_clause} RETURNING {table_columns}",

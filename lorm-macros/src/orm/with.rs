@@ -1,8 +1,9 @@
 use crate::models::OrmModel;
 use crate::utils::{
-    db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint, get_column_name,
+    db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint,
 };
 use quote::{__private::TokenStream, format_ident, quote};
+use syn::spanned::Spanned;
 
 pub fn generate_with(
     executor_type: &TokenStream,
@@ -13,20 +14,20 @@ pub fn generate_with(
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
     let table_name = &model.table_name;
-    let table_columns = &model.table_columns;
+    let table_columns = &model.full_select_columns();
 
-    let stream: Vec<(TokenStream, TokenStream)> = model.by_fields.iter().map(|field| (|| -> syn::Result<_> {
-        let field_ident = field.ident.as_ref().unwrap();
-        let field_name = get_column_name(field);
+    let stream: Vec<(TokenStream, TokenStream)> = model.fields.iter().filter(|f| f.column_properties.generate_by).map(|field| (|| -> syn::Result<_> {
+        let field_ident = &field.field;
+        let column_name = &field.column_name;
 
         let lifetime = quote! {'a};
 
-        let constraints = get_bind_type_where_constraint(field, database_type, &lifetime).unwrap();
+        let constraints = get_bind_type_where_constraint(&field.ty, database_type, &lifetime).unwrap();
         let param = quote! {value};
-        let (param_type, param_value) = get_bind_param_type_and_usage(&param, field, &lifetime)?;
+        let (param_type, param_value) = get_bind_param_type_and_usage(&param, &field.ty, &lifetime)?;
 
         let with_fn = format_ident!("with_{}",field_ident);
-        let placeholder = db_placeholder(field, 1).unwrap();
+        let placeholder = db_placeholder(field.base_field.span(), 1).unwrap();
 
         let signature = quote! {
             async fn #with_fn<#lifetime>(executor: E, #param: #param_type) -> lorm::errors::Result<Vec<#struct_name>> where #constraints
@@ -34,7 +35,7 @@ pub fn generate_with(
         let trait_code = quote! {
             #signature;
         };
-        let sql_ident = format!("SELECT {} FROM {} WHERE {} = {}", table_columns, table_name, field_name, placeholder);
+        let sql_ident = format!("SELECT {} FROM {} WHERE {} = {}", table_columns, table_name, column_name, placeholder);
 
         let impl_code = quote! {
             #signature {

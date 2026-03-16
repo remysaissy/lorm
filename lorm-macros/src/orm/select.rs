@@ -1,7 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::{
-    get_bind_param_type_and_usage, get_bind_type_where_constraint, get_column_name,
-};
+use crate::utils::{get_bind_param_type_and_usage, get_bind_type_where_constraint};
 use quote::{__private::TokenStream, format_ident, quote};
 use syn::spanned::Spanned;
 
@@ -15,19 +13,18 @@ pub fn generate_select(
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
     let table_name = &model.table_name;
-    let table_columns = &model.table_columns;
+    let table_columns = &model.full_select_columns();
 
     let lifetime = quote! {'a};
 
-    let impl_tokens: Vec<TokenStream> = model.by_fields.iter().map(|field| (|| -> syn::Result<_> {
-        let field_ident = field.ident.as_ref().ok_or_else(|| {
-            syn::Error::new(field.span(), "Field must have an identifier.")
-        })?;
-        let constraints = get_bind_type_where_constraint(field, database_type, &lifetime)?;
+    let impl_tokens: Vec<TokenStream> = model.fields.iter().filter(|f| f.column_properties.generate_by).map(|field| (|| -> syn::Result<_> {
+        let field_ident = &field.field;
+
+        let constraints = get_bind_type_where_constraint(&field.ty, database_type, &lifetime)?;
         let parameter = quote! {value};
-        let (param_type, param_use) = get_bind_param_type_and_usage(&parameter, field, &lifetime)?;
+        let (param_type, param_use) = get_bind_param_type_and_usage(&parameter, &field.ty, &lifetime)?;
         let param = quote! {#parameter: #param_type};
-        let field_name = get_column_name(field);
+        let column_name = &field.column_name;
         let where_between_fn = format_ident!("where_between_{}", field_ident);
         let where_fn = format_ident!("where_{}", field_ident);
         let having_fn = format_ident!("having_{}", field_ident);
@@ -35,8 +32,8 @@ pub fn generate_select(
         let group_by_fn = format_ident!("group_by_{}", field_ident);
 
 
-        let (left_type, left_use) = get_bind_param_type_and_usage(&quote! {left}, field, &lifetime)?;
-        let (right_type, right_use) = get_bind_param_type_and_usage(&quote! {right}, field, &lifetime)?;
+        let (left_type, left_use) = get_bind_param_type_and_usage(&quote! {left}, &field.ty, &lifetime)?;
+        let (right_type, right_use) = get_bind_param_type_and_usage(&quote! {right}, &field.ty, &lifetime)?;
         let code = quote! {
             #struct_visibility fn #having_fn(mut self, op: lorm::predicates::Having, fun: lorm::predicates::Function, #param) -> Self where #constraints {
                 if self.is_having == false {
@@ -46,9 +43,9 @@ pub fn generate_select(
                     self.builder.push(" AND");
                 }
                 let stmt = match fun {
-                    lorm::predicates::Function::Null => format!(" {} {} ", #field_name, op).to_string(),
-                    lorm::predicates::Function::Count { is_distinct } if is_distinct == true => format!(" {}(DISTINCT {}) {} ", fun, #field_name, op).to_string(),
-                    _ => format!(" {}({}) {} ", fun, #field_name, op).to_string()
+                    lorm::predicates::Function::Null => format!(" {} {} ", #column_name, op).to_string(),
+                    lorm::predicates::Function::Count { is_distinct } if is_distinct == true => format!(" {}(DISTINCT {}) {} ", fun, #column_name, op).to_string(),
+                    _ => format!(" {}({}) {} ", fun, #column_name, op).to_string()
                 };
                 self.builder.push(stmt);
                 self.builder.push_bind(#param_use);
@@ -62,7 +59,7 @@ pub fn generate_select(
                 } else {
                     self.builder.push(" AND");
                 }
-                let stmt = format!(" {} {} ", #field_name, op).to_string();
+                let stmt = format!(" {} {} ", #column_name, op).to_string();
                     self.builder.push(stmt);
                     self.builder.push_bind(#param_use);
                 self
@@ -75,7 +72,7 @@ pub fn generate_select(
                 } else {
                     self.builder.push(" AND");
                 }
-                let stmt = format!(" {} BETWEEN ", #field_name).to_string();
+                let stmt = format!(" {} BETWEEN ", #column_name).to_string();
                 self.builder.push(stmt);
                 self.builder.push_bind(#left_use);
                 self.builder.push(" AND ");
@@ -90,7 +87,7 @@ pub fn generate_select(
                 } else {
                     self.builder.push(",");
                 }
-                let stmt = format!(" {}", #field_name).to_string();
+                let stmt = format!(" {}", #column_name).to_string();
                 self.builder.push(stmt);
                 self
             }
@@ -102,7 +99,7 @@ pub fn generate_select(
                 } else {
                     self.builder.push(",");
                 }
-                let stmt = format!(" {}", #field_name).to_string();
+                let stmt = format!(" {}", #column_name).to_string();
                 self.builder.push(stmt);
                 self
             }

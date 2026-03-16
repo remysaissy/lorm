@@ -1,6 +1,7 @@
 use crate::models::OrmModel;
-use crate::utils::{db_placeholder, get_column_name};
+use crate::utils::db_placeholder;
 use quote::{__private::TokenStream, format_ident, quote};
+use syn::spanned::Spanned;
 
 pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let trait_ident = format_ident!("{}DeleteTrait", model.struct_name);
@@ -14,16 +15,18 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
         .fields()
         .iter()
         .enumerate()
-        .map(|(i, f)| match db_placeholder(f, i + 1) {
-            Ok(placeholder) => {
-                let field_name = get_column_name(f);
-                Ok(format!("{field_name} = {placeholder}"))
-            }
-            Err(e) => Err(e),
-        })
+        .map(
+            |(i, field)| match db_placeholder(field.base_field.span(), i + 1) {
+                Ok(placeholder) => {
+                    let column_name = &field.column_name;
+                    Ok(format!("{column_name} = {placeholder}"))
+                }
+                Err(e) => Err(e),
+            },
+        )
         .collect::<Result<Vec<_>, syn::Error>>()?
         .join(" AND ");
-    let pk_columns = model.primary_key.columns()?;
+    let pk_values = model.primary_key.fields().iter().map(|f| f.self_accessor());
 
     let sql_ident = format!("DELETE FROM {} WHERE {}", table_name, pk_placeholder);
 
@@ -37,7 +40,7 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
             async fn delete(&self, executor: E) -> lorm::errors::Result<()> {
                 sqlx::query(#sql_ident)
                 #(
-                    .bind(&self.#pk_columns)
+                    .bind(&self.#pk_values)
                 )*
                 .execute(executor).await?;
                 Ok(())

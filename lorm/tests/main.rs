@@ -19,7 +19,7 @@ struct User {
     #[lorm(pk)]
     #[lorm(new = "Uuid::new_v4()")]
     // Default is used but a boolean check function can also be used.
-    #[lorm(is_set = "is_nil()")]
+    #[lorm(is_set = "is_nil")]
     pub id: Uuid,
 
     #[lorm(by)]
@@ -30,7 +30,6 @@ struct User {
     pub count: Option<i32>,
 
     #[allow(unused)]
-    #[lorm(skip)]
     #[sqlx(skip)]
     pub tmp: i64,
 
@@ -81,7 +80,7 @@ struct Pairing {
     #[lorm(pk)]
     pub user2: i32,
     #[sqlx(flatten)]
-    #[lorm(flattened = (value = "score_value"))]
+    #[lorm(flattened(value: i32 = "score_value"))]
     pub score: PairingScore,
 }
 
