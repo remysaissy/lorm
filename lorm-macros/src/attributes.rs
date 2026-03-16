@@ -1,3 +1,4 @@
+use darling::ast::NestedMeta;
 use darling::util::{Callable, Flag};
 use darling::{FromAttributes, FromDeriveInput, FromField, FromMeta};
 use proc_macro_error2::emit_error;
@@ -43,9 +44,24 @@ pub struct SqlxColumnAttributes {
     pub rename: Option<String>,
 }
 
-#[derive(Debug, Default, FromMeta)]
+#[derive(Debug, Default)]
 pub struct JsonOptions {
-    nullable: Flag,
+    pub nullable: bool,
+}
+
+impl FromMeta for JsonOptions {
+    // #[sqlx(json)]
+    fn from_word() -> darling::Result<Self> {
+        Ok(JsonOptions { nullable: false })
+    }
+
+    // #[sqlx(json(nullable))]
+    fn from_list(items: &[NestedMeta]) -> darling::Result<Self> {
+        let nullable = items.iter().any(
+            |item| matches!(item, NestedMeta::Meta(syn::Meta::Path(p)) if p.is_ident("nullable")),
+        );
+        Ok(JsonOptions { nullable })
+    }
 }
 
 #[derive(Debug, FromMeta)]
