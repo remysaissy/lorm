@@ -16,6 +16,7 @@ Lorm is an async and lightweight ORM for SQLx that uses derive macros to generat
 ## Quickstart
 
 ### Installation
+
 Add Lorm to your `Cargo.toml`:
 
 ```toml
@@ -93,25 +94,37 @@ Lorm works seamlessly with both `Pool` and `Transaction` connections. Check the 
 
 Lorm provides several attributes to customize code generation. Attributes can be applied at struct level or field level.
 
-#### Field-Level Attributes
-
-| Attribute | Description | Example | Generated Methods |
-|-----------|-------------|---------|-------------------|
-| `#[lorm(pk)]` | Marks field as primary key. Automatically includes `by` functionality. Can only be set at creation time unless combined with `readonly`. | `#[lorm(pk)]`<br>`pub id: Uuid` | `by_id()`, `delete()`, `save()` |
-| `#[lorm(by)]` | Generates query and utility methods for this field | `#[lorm(by)]`<br>`pub email: String` | `by_<field>()`, `with_<field>()`, `where_<field>()`, `order_by_<field>()`, `group_by_<field>()` |
-| `#[lorm(readonly)]` | Field cannot be updated by application code. Database handles the value. | `#[lorm(readonly)]`<br>`pub count: i32` | Excluded from UPDATE queries |
-| `#[lorm(skip)]` | Field is ignored for all persistence operations. Use with `#[sqlx(skip)]` | `#[lorm(skip)]`<br>`#[sqlx(skip)]`<br>`pub tmp: String` | Excluded from all queries |
-| `#[lorm(created_at)]` | Marks field as creation timestamp | `#[lorm(created_at)]`<br>`pub created_at: DateTime` | Auto-set on INSERT |
-| `#[lorm(updated_at)]` | Marks field as update timestamp | `#[lorm(updated_at)]`<br>`pub updated_at: DateTime` | Auto-set on INSERT and UPDATE |
-| `#[lorm(new="expr")]` | Custom expression to generate field value | `#[lorm(new="Uuid::new_v4()")]` | Used in INSERT queries |
-| `#[lorm(is_set="fn()")]` | Custom function to check if field has a value | `#[lorm(is_set="is_nil()")]` | Used to determine INSERT vs UPDATE |
-| `#[lorm(rename="name")]` | Renames field to specific column name | `#[lorm(rename="user_email")]` | Uses custom column name |
-
 #### Struct-Level Attributes
 
-| Attribute | Description | Example |
-|-----------|-------------|---------|
-| `#[lorm(rename="name")]` | Sets custom table name | `#[lorm(rename="app_users")]`<br>`struct User` |
+| Attribute                              | Description                                                                                                                                             | Example                                           |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
+| `#[lorm(rename="name")]`               | Sets custom table name                                                                                                                                  | `#[lorm(rename="app_users")]`<br>`struct User`    |
+| `#[lorm(pk_type = "generated")]`       | Primary key mode (default). Exactly one field must be marked `#[lorm(pk)]`. Lorm automatically determines whether to generate a new key.                | `#[lorm(pk_type = "generated")]`<br>`struct User` |
+| `#[lorm(pk_type = "manual")]`          | Manual primary key mode. One or more fields can be marked `#[lorm(pk)]`. Supports composite primary keys.                                               | `#[lorm(pk_type = "manual")]`<br>`struct User`    |
+| `#[lorm(pk_selector = "method_name")]` | Only used with `pk_type = "manual"` and multiple `#[lorm(pk)]` fields. Customizes the generated composite-key selector method name (default: `by_key`). | `#[lorm(pk_selector = "by_composite_id")]`        |
+
+#### Field-Level Attributes
+
+| Attribute                                         | Description                                                                                                                                                            | Example                                                 | Generated Methods                                                                               |
+|---------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `#[lorm(pk)]`                                     | Marks field as primary key. Automatically includes `by` functionality. Can only be set at creation time unless combined with `readonly`.                               | `#[lorm(pk)]`<br>`pub id: Uuid`                         | `by_id()`, `delete()`, `save()`                                                                 |
+| `#[lorm(by)]`                                     | Generates query and utility methods for this field                                                                                                                     | `#[lorm(by)]`<br>`pub email: String`                    | `by_<field>()`, `with_<field>()`, `where_<field>()`, `order_by_<field>()`, `group_by_<field>()` |
+| `#[lorm(readonly)]`                               | Field cannot be updated by application code. Database handles the value.                                                                                               | `#[lorm(readonly)]`<br>`pub count: i32`                 | Excluded from UPDATE queries                                                                    |
+| `#[lorm(skip)]`                                   | Field is ignored for all persistence operations. Use with `#[sqlx(skip)]`                                                                                              | `#[lorm(skip)]`<br>`#[sqlx(skip)]`<br>`pub tmp: String` | Excluded from all queries                                                                       |
+| `#[lorm(created_at)]`                             | Marks field as creation timestamp                                                                                                                                      | `#[lorm(created_at)]`<br>`pub created_at: DateTime`     | Auto-set on INSERT                                                                              |
+| `#[lorm(updated_at)]`                             | Marks field as update timestamp                                                                                                                                        | `#[lorm(updated_at)]`<br>`pub updated_at: DateTime`     | Auto-set on INSERT and UPDATE                                                                   |
+| `#[lorm(new="expr")]`                             | Custom expression to generate field value                                                                                                                              | `#[lorm(new="Uuid::new_v4()")]`                         | Used in INSERT queries                                                                          |
+| `#[lorm(is_set="fn")]`                            | Custom function to check if field has a value. Only used with `#[lorm(pk)]` and `pk_type = "generated"`. If omitted, defaults to comparison with `Default::default()`. | `#[lorm(is_set="is_nil()")]`                            | Used to determine whether to generate a new private key                                         |                                                                  |
+| `#[lorm(flattened(field: Type = "column", ...))]` | Expands one Rust field into multiple SQL columns. Used with `#[sqlx(flatten)]`.                                                                                        | `#[lorm(flattened(a: i32, b: String = "column_b"))]`    | Maps nested struct fields to columns                                                            |
+
+#### SQLx Attributes (consumed by Lorm)
+
+| Attribute                         | Description                                                                                        |
+|-----------------------------------|----------------------------------------------------------------------------------------------------|
+| `#[sqlx(rename = "column_name")]` | Overrides SQL column name                                                                          |
+| `#[sqlx(skip)]`                   | Skips field in all ORM SQL generation                                                              |
+| `#[sqlx(json)]`                   | Binds field values as `sqlx::types::Json(...)`                                                     |
+| `#[sqlx(flatten)]`                | Flattens nested struct fields into the parent row. Must be combined with `#[lorm(flattened(...))]` |
 
 #### Naming Conventions
 
@@ -350,7 +363,55 @@ The same methods work with both.
 
 ### How do I handle composite primary keys?
 
-Lorm currently supports single-field primary keys only. For composite keys, use SQLx directly.
+Lorm supports composite primary keys using `#[lorm(pk_type = "manual")]` mode. Mark all primary key fields with
+`#[lorm(pk)]` and Lorm will generate a `by_key()` method that accepts all key fields as arguments. You can customize the
+method name with `#[lorm(pk_selector = "method_name")]`:
+
+```rust
+#[derive(Debug, FromRow, ToLOrm)]
+#[lorm(pk_type = "manual", pk_selector = "by_composite_id")]
+struct UserRole {
+    #[lorm(pk)]
+    pub user_id: Uuid,
+
+    #[lorm(pk)]
+    pub role_id: Uuid,
+}
+
+// Generated method signature
+let user_role = UserRole::by_composite_id( & pool, user_id, role_id).await?;
+```
+
+For simple cases, single-field primary keys with `#[lorm(pk_type = "generated")]` (the default) are simpler and
+recommended.
+
+### How do I use flattened fields?
+
+Lorm supports fields annotated with `#[sqlx(flatten)]`. However, you must specify the flattened struct fields manually
+using the `#[lorm(flattened(...))]` attribute. This is necessary because Lorm needs to know which SQL columns map to the
+nested struct fields.
+
+```rust
+#[derive(Debug, FromRow)]
+struct Address {
+    pub street: String,
+    #[sqlx(rename = "zip_code")]
+    pub zip: String,
+}
+
+#[derive(Debug, FromRow, ToLOrm)]
+struct User {
+    #[lorm(pk, new = "Uuid::new_v4()")]
+    pub id: Uuid,
+
+    #[sqlx(flatten)]
+    #[lorm(flattened(street: String, zip: String = "zip_code"))]
+    pub address: Address,
+}
+```
+
+The optional `= "column_name"` syntax is used for nested struct fields that have `#[sqlx(rename = "column_name")]`
+annotations.
 
 ### Can I customize the SQL queries Lorm generates?
 
@@ -378,7 +439,6 @@ Lorm is designed to be:
 
 - No automatic schema migrations (use SQLx migrations or other tools)
 - No relationships/joins (use SQLx for complex queries)
-- Requires `Default` trait on structs for most operations
 - Primary key field name detection is attribute-based, not convention-based
 
 ## When to Use Lorm
