@@ -127,7 +127,9 @@ pub struct ColumnProperties {
 
     /// The expression to use to generate a new value for the field. Used when generating a new primary key or the `created_at` and `updated_at` fields.
     pub new_expression: Expr,
-    /// The expression to use to check if a field is already populated with a value when deciding whether to generate a new primary key.
+    /// A function from `&T` to `bool` to use to check if a field is already populated with a value when deciding whether to generate a new primary key.
+    ///
+    /// By default, the value is compared with `Default::default()`.
     /// The user can supply this with the `#[lorm(is_set = callable)]` attribute
     pub is_set_expression: Expr,
 }
@@ -148,10 +150,9 @@ fn default_new_expression() -> Expr {
 }
 
 fn default_is_set_expression(field: &Field) -> Expr {
-    let instance_field = field.ident.as_ref().unwrap();
     let ty = &field.ty;
     syn::parse_quote! {
-        #instance_field == <#ty as Default>::default()
+        (|val| val == &<#ty as Default>::default())
     }
 }
 
@@ -196,13 +197,10 @@ impl ColumnProperties {
             updated_at: value.is_updated_at.is_present(),
             use_json: sqlx_attrs.is_json.is_some(),
             new_expression: value.new_expression.unwrap_or_else(default_new_expression),
-            is_set_expression: value.is_set_expression.map_or_else(
-                || default_is_set_expression(field),
-                |c| {
-                    let field = field.ident.as_ref().unwrap();
-                    syn::parse_quote!(#field.#c())
-                },
-            ),
+            is_set_expression: value
+                .is_set_expression
+                .map(|callable| callable.into())
+                .unwrap_or(default_is_set_expression(field)),
         }
     }
 }

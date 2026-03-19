@@ -64,7 +64,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                 let pk_new_method = &field.column_properties.new_expression;
                 let accessor = field.self_accessor();
                 quote! {
-                    let #primary_key_var = if self.#pk_is_default_method {
+                    let #primary_key_var = if #pk_is_default_method(#accessor) {
                         &#pk_new_method
                     } else {
                         #accessor
