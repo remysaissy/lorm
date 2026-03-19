@@ -68,6 +68,23 @@ mod utils;
 /// This is done using the `#[lorm(flattened(field: Type = "column", field2: Type2, ...))]` attribute.
 /// The optional `= "column` can be used for fields of the flattened type annotated with `#[sqlx(rename = "column_name")]`.
 ///
+/// ```rs
+/// #[derive(Debug, FromRow)]
+/// struct FlattenThis {
+///     pub a: i32,
+///     #[sqlx(rename = "column_b")]
+///     pub b: String,
+/// }
+///
+/// #[derive(Debug, FromRow, ToLOrm)
+/// struct Table {
+///     #[sqlx(flatten)]
+///     #[lorm(flattened(a: i32, b: String = "column_b"))]
+///     pub x: FlattenThis,
+///     pub y: i32
+/// }
+/// ```
+///
 /// # Supported Attributes
 ///
 /// Struct-level:
