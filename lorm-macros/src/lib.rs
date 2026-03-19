@@ -8,78 +8,128 @@ mod orm;
 mod utils;
 
 /// `#[derive(ToLOrm)]`
-/// generate methods for Object Relational Mapping.
 ///
-/// attributes:
+/// Generates Object Relational Model traits and methods for a named struct.
 ///
-/// `#[lorm(pk)]`
-///  Annotated field is marked as being the primary key and can only be generated at insertion time.
-///  This field is also automatically considered as a `#[lorm(by)]` field.
-///  - If `#[lorm(new)]` is specified, it will use its struct method to generate a new pk at insertion time
-///  - If `#[lorm(is_set)]` is specified, it will use its instance method against `self` to check if the pk is set. Otherwise it compares the pk value with its <struct>::default() (assuming the Default trait is set)
-///  - If `#[lorm(readonly)]` is specified, it will ignore is_set `#[lorm(new)]` and `#[lorm(is_set)]` and let the database handles the field
+/// ## Private Key Handling
 ///
-/// `#[lorm(rename="name")]`
-///   - at struct level to rename at table name
-///   - at field level to rename at column name
+/// Lorm supports two types of private keys.
 ///
-///   by default, a table name is the struct name pluralized and converted to table case: UserDetail => user_details.
-///   by default, a field name is converted to snake_case: UserDetail => user_detail.
+/// ### `generated` (default)
+/// `[#[lorm(pk_type = "generated")]`
 ///
-/// `#[lorm(skip)]`
-///  Ignore field for persistence operations. Using sqlx::FromRow, skip needs `#[lorm(skip)]` and `#[sqlx(skip)]`
+/// This is the default mode. Exactly one field must be marked with `#[lorm(pk)]`.
+/// When saving an instance, lorm will determine whether the private key is already set or not and generate one if needed.
 ///
-/// `#[lorm(readonly)]`
-///  readonly attribute. Cannot be updated not inserted.
-///  Special cases to consider:
-///   - If applied to the primary key, key generation is left to the database. No update possible as it is the primary key.
-///   - If applied to create_at or updated_at field, timestamp generation is left to the database. No update possible.
+/// If not specified otherwise using the `#[lorm(is_set = "method_name")]` attribute,
+/// lorm considers the private key not set if its value is equal to the default value
+/// of its type (requiring the primary key type to implement `Default` and `Eq`).
 ///
-/// `#[lorm(by)]`
-///  Generates query methods for this field:
-///  - `by_<field>(executor, value)` - Find single record by field value
-///  - `with_<field>(executor, value)` - Find all records matching field value
-///  - `where_<field>(Where, value)` - Filter in select() query builder
-///  - `where_between_<field>(start, end)` - Range filter in select() query builder
-///  - `order_by_<field>()` - Order results by this field (chain with `.asc()` or `.desc()`)
-///  - `group_by_<field>()` - Group results by this field
+/// A new key value is generated using [Default::default()] or by the expression specified with `#[lorm(new = "expr")]`.
 ///
-/// `#[lorm(created_at)]`
-///  Add the `#[lorm(created_at)]` annotation to mark the field as the `created_at` field.
-///  - If `#[lorm(new)]` is specified, it will use its method to update the time upon insertion
-///  - If `#[lorm(readonly)]` is specified, it will ignore is_set `#[lorm(new)]` and let the database handles the field
+/// If the primary key field is marked as `#[lorm(readonly)]`, key generation is skipped and the database is expected to provide the value (for example, with an auto-incrementing column).
 ///
-/// `#[lorm(updated_at)]`
-///  Add the `#[lorm(updated_at)]` annotation to mark the field as the `updated_at` field.
-///  - If `#[lorm(new)]` is specified, it will use its method to update the time upon insertion and update
-///  - If `#[lorm(readonly)]` is specified, it will ignore is_set `#[lorm(new)]` and let the database handles the field
+/// If the fields are also marked as `#[lorm(readonly)]`, key generation is skipped and the database is expected to provide the value.
 ///
-/// `#[lorm(new="module::path::class::new_custom()")]`
-///  Add the `#[lorm(new="module::path::class::new_custom()")]` annotation to use a custom creation method.
-///  - The function call is expected to return an instance
-///  - When not provided, the type::new() method is called
+/// ### `manual`
+/// `#[lorm(pk_type = "manual")]`
 ///
-/// `#[lorm(is_set="is_nil()")]`
-///  Uses a specific function call to check if the returned value if the default value.
-///  The function call is expected to return bool.
-///  Defaults to class_type::default() which assumes both the Default and PartialEq trait are implemented.
+/// In this mode, lorm does not touch your primary key ever and assumes that it always holds a correct value.
+/// The primary key can also be a composite primary key if multiple fields are marked with `#[lorm(pk)]`.
+///
+/// ## `created_at` and `updated_at`
+///
+/// Lorm can manage fields that are specified to hold times that an instance was first or last saved to the database. These fields are marked with `#[lorm(created_at)]` and `#[lorm(updated_at)]`, respectively.
+///
+/// Their value is constructed at insert/update time using [Default::default()] or the expression specified with `#[lorm(new = "expr")]`.
+///
+/// ## Query Methods
+///
+/// Lorm generates the following standalone query methods:
+/// - `by_<field>(executor, value)`: Find a single record by field value
+/// - `with_<field>(executor, value)`: Find all records matching a field value
+/// and the following for the `::select()` query builder:
+/// - `where_<field>(Where, value)`: Filter by field value
+/// - `where_between_<field>(start, end)`: Filter by field value range (SQL `BETWEEN`)
+/// - `order_by_<field>()`: Order results by filed (chain with `.asc()` or `.desc()`)
+/// - `group_by_<field>()`: Group results by this field
+///
+/// These methods are generated for a field if it fulfills any of the following conditions:
+/// - It is annotated with `#[lorm(by)]`
+/// - It is annotated with `#[lorm(created_at)]` or `#[lorm(updated_at)]`
+/// - It is a non-composite primary key (the only field annotated with `#[lorm(pk)]`)
+///
+/// Additionally, a `by_key` method is generated for `manual` composite primary keys that takes
+/// each column of the primary key as an argument. The name of this method can be customized with `#[lorm(pk_selector = "method_name")]`.
+///
+/// ## Flattening
+///
+/// Lorm supports fields annotated with `#[sqlx(flatten)]`. However, users must specify by hand the fields this flattened to.
+/// This is done using the `#[lorm(flattened(field: Type = "column", field2: Type2, ...))]` attribute.
+/// The optional `= "column` can be used for fields of the flattened type annotated with `#[sqlx(rename = "column_name")]`.
+///
+/// # Supported Attributes
+///
+/// Struct-level:
+/// - `#[lorm(rename = "table_name")]`
+///   Overrides the SQL table name. By default, the struct name is converted to table_case and pluralized
+///   (for example: `UserDetail` -> `user_details`).
+/// - `#[lorm(pk_type = "generated" | "manual")]`
+///   Primary key mode. Default is `generated`.
+///   - `generated`: exactly one field must be marked `#[lorm(pk)]`. Lorm will determine whether to generate a new key or not.
+///   - `manual`: one or more fields must be marked `#[lorm(pk)]`.
+/// - `#[lorm(pk_selector = "method_name")]`
+///   Only used for `pk_type = "manual"` with multiple `#[lorm(pk)]` fields.
+///   Renames the generated composite-key selector method (default: `by_key`).
+///
+/// Field-level:
+/// - `#[lorm(pk)]`
+///   Marks a primary-key field.
+/// - `#[lorm(by)]`
+///   Generate query methods for this field.
+/// - `#[lorm(readonly)]`
+///   Excludes the field from insert/update in `save()`.
+/// - `#[lorm(created_at)]`
+///   Marks the created-at field (at most one field can use this).
+/// - `#[lorm(updated_at)]`
+///   Marks the updated-at field (at most one field can use this).
+/// - `#[lorm(new = "expr")]
+///   Custom value expression used by `save()` when generating a new primary key or the `created_at` or `updated_at` values.
+///   If omitted, defaults to `Default::default()`.
+/// - `#[lorm(is_set = "method_name")]
+///   If omitted, defaults to a comparison with `<FieldType as Default>::default()`.
+///   Can only be used with `#[lorm(pk)]` and `generated` primary key mode.
+/// - `#[lorm(flattened(field_a: TypeA = "column_a", field_b: TypeB, ...))]`
+///   Expands one Rust field into multiple logical SQL columns in generated SQL.
+///
+/// Attributes from `sqlx`'s `FromRow` derive macro also consumed by lorm:
+/// - `#[sqlx(skip)]`: skips the field entirely in generated ORM SQL.
+/// - `#[sqlx(rename = "column_name")]`: overrides SQL column name.
+/// - `#[sqlx(json)]`: binds field values as `sqlx::types::Json(...)`.
+/// - `#[sqlx(flatten)]`: supported alongside `#[lorm(flattened(...))]` for flattened fields.
 ///
 #[proc_macro_error]
 #[proc_macro_derive(ToLOrm,
     attributes(
         lorm,
         // lorm(pk),
-        // lorm(pk_type),
+        // lorm(pk_type = "generated" | "manual"),
+        // lorm(pk_selector = "by_key"),
         // lorm(by),
-        // lorm(skip),
         // lorm(readonly),
-        // lorm(new="module::path::class::new_custom()"),
-        // lorm(is_set="is_nil()"),
         // lorm(created_at),
         // lorm(updated_at),
+        // lorm(new = "expr"),
+        // lorm(is_set = "method_name"),
+        // lorm(flattened(field: Type = "column")),
+        // lorm(rename = "table_name"),
 
-        // also uses:
-        // sqlx(rename)
+        // additionally consumed on fields:
+        // sqlx(rename = "column_name")
+        // sqlx(skip)
+        // sqlx(json)
+        // sqlx(json(nullable))
+        // sqlx(flatten)
     )
 )]
 pub fn sql_derive_to_orm(input: TokenStream) -> TokenStream {
