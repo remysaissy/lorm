@@ -395,9 +395,22 @@ Lorm is designed to be:
 - You need an Active Record pattern
 - You require ORM-managed relationships
 
+## Contributing
+
+We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on the development setup, testing, and the pull request process.
+
+**Signed commits are required.** We use [gitsign](https://github.com/sigstore/gitsign) for keyless commit signing via [Sigstore](https://www.sigstore.dev/) — no GPG key management needed. See the [Signing Your Commits](CONTRIBUTING.md#signing-your-commits) section in CONTRIBUTING.md for setup instructions.
+
+### Verifying Release Artifacts
+
+Published crate artifacts include [GitHub Artifact Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) for supply chain verification:
+
+```bash
+gh attestation verify ./lorm-*.crate --repo remysaissy/lorm
+```
+
 ## License
 Licensed under Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE) or http://www.apache.org/licenses/LICENSE-2.0)
 
-## Contribution
 Unless you explicitly state otherwise, any Contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be  licensed as above, without any additional terms or conditions.
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be licensed as above, without any additional terms or conditions.
