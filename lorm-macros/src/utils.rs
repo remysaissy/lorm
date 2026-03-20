@@ -1,4 +1,4 @@
-use inflector::Inflector;
+use heck::ToSnakeCase;
 use quote::{__private::TokenStream, ToTokens, quote};
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Expr, Field, LitStr, PathArguments, Type, parse};
@@ -203,7 +203,7 @@ pub(crate) fn get_table_name(input: &DeriveInput) -> String {
     let table_name = get_attribute_by_key(&input.attrs, "lorm", "rename");
     match table_name {
         None => {
-            let table_name = input.ident.to_string().to_table_case();
+            let table_name = input.ident.to_string().to_snake_case();
             pluralizer::pluralize(table_name.as_str(), 2, false)
         }
         Some(table_name) => table_name,
