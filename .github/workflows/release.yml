@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  verify:
+    name: Verify Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: rustup toolchain install
+      - run: rustup component add rustfmt clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: ./format.sh --check
+
+      - name: Clippy check
+        run: ./check.sh --all-features
+
+      - name: Run tests
+        run: ./test.sh
+
+  attest:
+    name: Build Attestation
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build workspace
+        run: cargo build --release --workspace
+
+      - name: Package crates for attestation
+        run: |
+          cargo package -p lorm-macros --target-dir attestation-artifacts
+          cargo package -p lorm --target-dir attestation-artifacts
+
+          mkdir -p attestation-output
+          find attestation-artifacts/package -name '*.crate' -exec cp {} attestation-output/ \;
+          ls -la attestation-output/
+
+      - name: Attest lorm-macros crate
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'attestation-output/lorm-macros-*.crate'
+
+      - name: Attest lorm crate
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'attestation-output/lorm-*.crate'
