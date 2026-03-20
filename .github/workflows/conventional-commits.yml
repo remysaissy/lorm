@@ -1,0 +1,44 @@
+name: Conventional Commits
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  check:
+    name: Validate Commit Messages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check conventional commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          PATTERN='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?!?: .+'
+          FAILED=0
+          TOTAL=0
+
+          for COMMIT in $(git rev-list "${BASE_SHA}..${HEAD_SHA}"); do
+            TOTAL=$((TOTAL + 1))
+            SHORT=$(git rev-parse --short "$COMMIT")
+            SUBJECT=$(git log -1 --format='%s' "$COMMIT")
+
+            if ! echo "$SUBJECT" | grep -qE "$PATTERN"; then
+              echo "::error::Commit ${SHORT} does not follow Conventional Commits: '${SUBJECT}'"
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          echo "${TOTAL} commits checked, ${FAILED} non-conventional"
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo ""
+            echo "::error::${FAILED} commit(s) do not follow Conventional Commits."
+            echo "Expected format: <type>(<scope>): <description>"
+            echo "See https://www.conventionalcommits.org/en/v1.0.0/"
+            exit 1
+          fi
