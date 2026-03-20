@@ -34,3 +34,19 @@ chrono = { workspace = true, features = ["std", "serde"] }
 uuid = { workspace = true, features = ["std", "serde", "v4"] }
 fake = { workspace = true }
 anyhow = { workspace = true }
+
+[[example]]
+name = "basic_crud"
+path = "../examples/basic_crud.rs"
+
+[[example]]
+name = "query_builder"
+path = "../examples/query_builder.rs"
+
+[[example]]
+name = "transactions"
+path = "../examples/transactions.rs"
+
+[[example]]
+name = "test"
+path = "../examples/test.rs"

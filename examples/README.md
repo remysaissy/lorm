@@ -10,21 +10,9 @@ From the workspace root:
 cargo run --example <example_name> -p lorm
 ```
 
-Or from the `lorm/` directory:
-
-```bash
-cd lorm
-cargo run --example <example_name>
-```
-
 For instance:
 ```bash
-# From workspace root
 cargo run --example basic_crud -p lorm
-
-# Or from lorm/ directory
-cd lorm
-cargo run --example basic_crud
 ```
 
 ## Available Examples
