@@ -2,6 +2,9 @@ name: Verify Commit Signatures
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
   verify-signatures:
@@ -12,10 +15,32 @@ jobs:
         with:
           fetch-depth: 0 # Required to access full commit history for verification
 
+      - name: Determine commit range
+        id: commit-range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "base_sha=${PR_BASE_SHA}" >> "$GITHUB_OUTPUT"
+            echo "head_sha=${PR_HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            # Handle initial push (no previous commit) by falling back to parent
+            if [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              echo "base_sha=$(git rev-parse "${PUSH_AFTER}^")" >> "$GITHUB_OUTPUT"
+            else
+              echo "base_sha=${PUSH_BEFORE}" >> "$GITHUB_OUTPUT"
+            fi
+            echo "head_sha=${PUSH_AFTER}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Verify commit signatures
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ steps.commit-range.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.commit-range.outputs.head_sha }}
         run: |
           echo "Verifying signatures for commits ${BASE_SHA}..${HEAD_SHA}"
 
