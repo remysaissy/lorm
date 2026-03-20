@@ -19,7 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-Inflector = { workspace = true, features = ["heavyweight"] }
+heck = { workspace = true }
 quote = { workspace = true, features = ["proc-macro"] }
 syn = { workspace = true, features = ["proc-macro", "derive", "parsing", "printing", "extra-traits"] }
 pluralizer = { workspace = true }
