@@ -1,4 +1,4 @@
-name: Verify Commit Signatures
+name: Verify Gitsign Signatures
 
 on:
   pull_request:
@@ -7,8 +7,8 @@ on:
       - main
 
 jobs:
-  verify-signatures:
-    name: Verify Signed Commits
+  verify-gitsign-signatures:
+    name: Verify Gitsign Signatures
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +68,7 @@ jobs:
           if [ "$FAILED" -gt 0 ]; then
             echo ""
             echo "::error::${FAILED} commit(s) are not signed. Please sign your commits."
-            echo "See CONTRIBUTING.md for instructions on setting up gitsign."
+            echo "See CONTRIBUTING.md for instructions on setting up commit signing."
             exit 1
           fi
 
