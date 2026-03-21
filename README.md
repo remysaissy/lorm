@@ -399,7 +399,7 @@ Lorm is designed to be:
 
 We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on the development setup, testing, and the pull request process.
 
-**Signed commits are required.** We use [gitsign](https://github.com/sigstore/gitsign) for keyless commit signing via [Sigstore](https://www.sigstore.dev/) — no GPG key management needed. See the [Signing Your Commits](CONTRIBUTING.md#signing-your-commits) section in CONTRIBUTING.md for setup instructions.
+**Signed commits are required.** See the [Signing Your Commits](CONTRIBUTING.md#signing-your-commits) section in CONTRIBUTING.md for setup instructions using GPG, SSH, or S/MIME.
 
 ### Verifying Release Artifacts
 
