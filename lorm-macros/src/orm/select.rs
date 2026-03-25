@@ -1,5 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::{get_bind_type_constraint, get_field_name};
+use crate::utils::get_bind_type_constraint;
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_select(
@@ -11,18 +11,16 @@ pub fn generate_select(
     let builder_struct_ident = format_ident!("{}SelectBuilder", model.struct_name);
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
-    let table_name = &model.table_name;
-    let table_columns = &model.table_columns;
 
-    let impl_tokens: Vec<TokenStream> = model.by_fields.iter().map(|field| {
-        let field_ident = field.ident.as_ref().unwrap();
-        let field_type_constraints = get_bind_type_constraint(field, database_type).unwrap();
-        let field_name = get_field_name(field);
-        let where_between_fn = format_ident!("where_between_{}", field_ident);
-        let where_fn = format_ident!("where_{}", field_ident);
-        let having_fn = format_ident!("having_{}", field_ident);
-        let order_by_fn = format_ident!("order_by_{}", field_ident);
-        let group_by_fn = format_ident!("group_by_{}", field_ident);
+    let impl_tokens: Vec<TokenStream> = model.query_columns().map(|column| {
+        let field_name = &column.field;
+        let column_name = &column.column_name;
+        let field_type_constraints = get_bind_type_constraint(column.base_field, database_type).unwrap();
+        let where_between_fn = format_ident!("where_between_{}", field_name);
+        let where_fn = format_ident!("where_{}", field_name);
+        let having_fn = format_ident!("having_{}", field_name);
+        let order_by_fn = format_ident!("order_by_{}", field_name);
+        let group_by_fn = format_ident!("group_by_{}", field_name);
 
         let code = quote! {
             #struct_visibility fn #having_fn<T: #field_type_constraints>(mut self, op: lorm::predicates::Having, fun: lorm::predicates::Function, value: T) -> #builder_struct_ident {
@@ -33,9 +31,9 @@ pub fn generate_select(
                     self.builder.push(" AND");
                 }
                 let stmt = match fun {
-                    lorm::predicates::Function::Null => format!(" {} {} ", #field_name, op).to_string(),
-                    lorm::predicates::Function::Count { is_distinct } if is_distinct == true => format!(" {}(DISTINCT {}) {} ", fun, #field_name, op).to_string(),
-                    _ => format!(" {}({}) {} ", fun, #field_name, op).to_string()
+                    lorm::predicates::Function::Null => format!(" {} {} ", #column_name, op).to_string(),
+                    lorm::predicates::Function::Count { is_distinct } if is_distinct == true => format!(" {}(DISTINCT {}) {} ", fun, #column_name, op).to_string(),
+                    _ => format!(" {}({}) {} ", fun, #column_name, op).to_string()
                 };
                 self.builder.push(stmt);
                 self.builder.push_bind(value);
@@ -49,7 +47,7 @@ pub fn generate_select(
                 } else {
                     self.builder.push(" AND");
                 }
-                let stmt = format!(" {} {} ", #field_name, op).to_string();
+                let stmt = format!(" {} {} ", #column_name, op).to_string();
                     self.builder.push(stmt);
                     self.builder.push_bind(value);
                 self
@@ -62,7 +60,7 @@ pub fn generate_select(
                 } else {
                     self.builder.push(" AND");
                 }
-                let stmt = format!(" {} BETWEEN ", #field_name).to_string();
+                let stmt = format!(" {} BETWEEN ", #column_name).to_string();
                 self.builder.push(stmt);
                 self.builder.push_bind(left);
                 self.builder.push(" AND ");
@@ -77,7 +75,7 @@ pub fn generate_select(
                 } else {
                     self.builder.push(",");
                 }
-                let stmt = format!(" {}", #field_name).to_string();
+                let stmt = format!(" {}", #column_name).to_string();
                 self.builder.push(stmt);
                 self
             }
@@ -89,13 +87,17 @@ pub fn generate_select(
                 } else {
                     self.builder.push(",");
                 }
-                let stmt = format!(" {}", #field_name).to_string();
+                let stmt = format!(" {}", #column_name).to_string();
                 self.builder.push(stmt);
                 self
             }
         };
         code
     }).collect::<Vec<_>>();
+
+    let select_columns = model.full_column_select();
+    let table_name = &model.table_name;
+    let select_base = format!("SELECT {select_columns} from {table_name}");
 
     Ok(quote! {
         #struct_visibility trait #trait_ident {
@@ -104,11 +106,7 @@ pub fn generate_select(
 
         impl #trait_ident for #struct_name {
             fn select() -> #builder_struct_ident {
-                let sql = format!(
-                    "SELECT {} FROM {}",
-                    #table_columns, #table_name
-                );
-                let builder = sqlx::QueryBuilder::new(sql);
+                let builder = sqlx::QueryBuilder::new(#select_base);
                 #builder_struct_ident { builder, is_where: false, is_having: false, is_group_by: false, is_order_by: false }
             }
         }
