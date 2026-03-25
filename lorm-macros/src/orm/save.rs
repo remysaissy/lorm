@@ -1,91 +1,94 @@
 use crate::models::OrmModel;
-use crate::utils::{
-    create_insert_placeholders, create_update_placeholders, db_placeholder, get_field_name,
-    get_is_set, get_new_method,
-};
+use crate::orm::column::Column;
+use crate::utils::db_placeholder;
 use quote::{__private::TokenStream, format_ident, quote};
-use syn::Ident;
 
 pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Result<TokenStream> {
     let save_trait_ident = format_ident!("{}SaveTrait", model.struct_name);
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
     let table_name = &model.table_name;
-    let table_columns = &model.table_columns;
+
+    let full_select_columns = model.full_column_select();
+
+    let primary_key = model.primary_key();
 
     // prepare `insertable` fields
-    let mut insert_columns_vec: Vec<String> = vec![];
-    let mut insert_values: Vec<Option<&Ident>> = vec![];
-    for field in model.insert_fields.iter() {
-        insert_columns_vec.push(get_field_name(field));
-        insert_values.push(field.ident.as_ref());
-    }
-    let insert_columns = insert_columns_vec.join(",");
-    let insert_value_placeholders = create_insert_placeholders(&model.insert_fields);
+    let insert_value_placeholders =
+        create_insert_placeholders(&model.insert_columns().collect::<Vec<_>>());
+    let insert_values = model
+        .insert_columns()
+        .map(|col| col.field.clone())
+        .collect::<Vec<_>>();
+    let insert_columns = model
+        .insert_columns()
+        .map(|col| col.column_name.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
 
     // find `updatable` fields
-    let update_value_placeholders = create_update_placeholders(&model.update_fields);
+    let update_value_placeholders =
+        create_update_placeholders(&model.update_columns().collect::<Vec<_>>());
     let update_values = model
-        .update_fields
-        .iter()
-        .map(|field| &field.ident)
+        .update_columns()
+        .map(|col| col.field.clone())
         .collect::<Vec<_>>();
 
     // Primary key
-    let pk_column = model.pk_field.ident.as_ref().unwrap();
-    let pk_name = get_field_name(model.pk_field);
+    let pk_column = &primary_key.column_name;
+    let pk_field = &primary_key.field;
     let pk_placeholder = format!(
         "{} = {}",
-        pk_name,
-        db_placeholder(model.pk_field, model.update_fields.len() + 1).unwrap()
+        pk_column,
+        db_placeholder(primary_key.base_field, model.update_columns().count() + 1)?
     );
-    let pk_is_default_method = get_is_set(model.pk_field);
-    let pk_code = if model.is_pk_readonly {
+    let pk_is_set = &primary_key
+        .column_properties
+        .is_set(quote! { to_save.#pk_field });
+    let pk_code = if primary_key.column_properties.readonly {
         quote! {}
     } else {
-        let pk_new_method = get_new_method(model.pk_field);
+        let pk_new_method = &primary_key.column_properties.new_expression;
         quote! {
-            to_save.#pk_column = #pk_new_method;
+            to_save.#pk_field = #pk_new_method;
         }
     };
 
-    let created_at_code = match model.created_at_field.as_ref() {
+    let created_at_code = match model.created_at() {
         None => quote! {},
-        Some(field) => {
-            if model.is_created_at_readonly {
+        Some(column) => {
+            if column.column_properties.readonly {
                 quote! {}
             } else {
-                let new_method = get_new_method(field);
-                let column = field.ident.as_ref().unwrap();
+                let new_method = &column.column_properties.new_expression;
+                let field = &column.field;
                 quote! {
-                    to_save.#column = #new_method;
+                    to_save.#field = #new_method;
                 }
             }
         }
     };
 
-    let updated_at_code = match model.updated_at_field.as_ref() {
+    let updated_at_code = match model.updated_at() {
         None => quote! {},
-        Some(field) => {
-            if model.is_updated_at_readonly {
+        Some(column) => {
+            if column.column_properties.readonly {
                 quote! {}
             } else {
-                let new_method = get_new_method(field);
-                let column = field.ident.as_ref().unwrap();
+                let new_method = &column.column_properties.new_expression;
+                let field = &column.field;
                 quote! {
-                    to_save.#column = #new_method;
+                    to_save.#field = #new_method;
                 }
             }
         }
     };
 
     let insert_sql_ident = format!(
-        "INSERT INTO {} ({}) VALUES ({}) RETURNING {}",
-        table_name, insert_columns, insert_value_placeholders, table_columns
+        "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) RETURNING {full_select_columns}"
     );
     let update_sql_ident = format!(
-        "UPDATE {} SET {} WHERE {} RETURNING {}",
-        table_name, update_value_placeholders, pk_placeholder, table_columns
+        "UPDATE {table_name} SET {update_value_placeholders} WHERE {pk_placeholder} RETURNING {full_select_columns}"
     );
 
     Ok(quote! {
@@ -99,7 +102,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
             {
                 let mut to_save = self.clone();
                 #updated_at_code
-                match to_save.#pk_is_default_method {
+                match #pk_is_set {
                     true => {
                         #pk_code
                         #created_at_code
@@ -115,7 +118,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                         #(
                             .bind(&self.#update_values)
                         )*
-                        .bind(&self.#pk_column)
+                        .bind(&self.#pk_field)
                         .fetch_one(executor).await?;
                         Ok(r)
                     }
@@ -123,4 +126,35 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
             }
         }
     })
+}
+
+/// Creates SQL placeholders for INSERT statements.
+///
+/// Generates database-specific placeholders: `"$1, $2, $3"` for PostgreSQL/SQLite or `"?, ?, ?"` for MySQL.
+pub(crate) fn create_insert_placeholders<'a>(columns: &[&Column<'a>]) -> String {
+    columns
+        .iter()
+        .enumerate()
+        .map(|(i, c)| db_placeholder(c.base_field, i + 1).unwrap())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// Creates SQL placeholders for UPDATE statements.
+///
+/// Generates database-specific SET clauses: `"name = $1, email = $2"` for PostgreSQL/SQLite
+/// or `"name = ?, email = ?"` for MySQL.
+pub(crate) fn create_update_placeholders<'a>(fields: &[&Column<'a>]) -> String {
+    fields
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            format!(
+                "{} = {}",
+                c.column_name,
+                db_placeholder(c.base_field, i + 1).unwrap()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
 }

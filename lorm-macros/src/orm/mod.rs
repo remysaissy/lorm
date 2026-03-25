@@ -1,4 +1,5 @@
 mod by;
+pub mod column;
 mod delete;
 mod save;
 mod select;
