@@ -28,7 +28,6 @@ struct User {
     pub count: Option<i32>,
 
     #[allow(unused)]
-    #[lorm(skip)]
     #[sqlx(skip)]
     pub tmp: i64,
 
