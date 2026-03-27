@@ -44,7 +44,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
     );
     let pk_is_set = &primary_key
         .column_properties
-        .is_set(quote! { to_save.#pk_field });
+        .is_set(quote! { to_save.#pk_field }, &primary_key.ty);
     let pk_code = if primary_key.column_properties.readonly {
         quote! {}
     } else {
