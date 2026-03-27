@@ -5,10 +5,10 @@ use darling::util::Flag;
 use heck::ToSnakeCase;
 use quote::__private::TokenStream;
 use quote::quote;
-use syn::DeriveInput;
 use syn::Expr;
 use syn::Field;
 use syn::spanned::Spanned;
+use syn::{DeriveInput, Type};
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(lorm), supports(struct_named))]
@@ -122,10 +122,10 @@ impl ColumnProperties {
         })
     }
 
-    pub fn is_set(&self, base: TokenStream) -> TokenStream {
+    pub fn is_set(&self, base: TokenStream, ty: &Type) -> TokenStream {
         match &self.is_set_expression {
             Some(expr) => quote! {#base.#expr},
-            None => quote! {#base == Default::default()},
+            None => quote! {#base == #ty::default()},
         }
     }
 }
