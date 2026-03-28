@@ -1,14 +1,14 @@
-use darling::FromDeriveInput;
 use darling::FromField;
 use darling::FromMeta;
 use darling::util::Flag;
+use darling::{FromAttributes, FromDeriveInput};
 use heck::ToSnakeCase;
 use quote::__private::TokenStream;
 use quote::quote;
 use syn::Expr;
 use syn::Field;
 use syn::spanned::Spanned;
-use syn::{DeriveInput, Type};
+use syn::{Attribute, DeriveInput, Type};
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(lorm), supports(struct_named))]
@@ -30,9 +30,6 @@ impl TableAttributes {
 
 #[derive(Debug, FromMeta)]
 struct ColumnPropertyAttrs {
-    skip: Flag,
-    rename: Option<String>,
-
     #[darling(rename = "pk")]
     is_primary_key: Flag,
     #[darling(rename = "by")]
@@ -78,11 +75,24 @@ pub struct ColumnProperties {
     pub is_set_expression: Option<Expr>,
 }
 
+#[derive(Debug, FromAttributes)]
+#[darling(attributes(sqlx), allow_unknown_fields)]
+pub struct SqlxColumnAttributes {
+    pub skip: Flag,
+    pub rename: Option<String>,
+}
+
+fn parse_sqlx_attrs(attrs: Vec<Attribute>) -> Result<SqlxColumnAttributes, darling::Error> {
+    SqlxColumnAttributes::from_attributes(&attrs)
+}
+
 #[derive(Debug, FromField)]
 #[darling(attributes(lorm), forward_attrs(sqlx))]
 pub struct FieldAttributes {
     #[darling(flatten)]
     field_properties: ColumnPropertyAttrs,
+    #[darling(with = "parse_sqlx_attrs")]
+    attrs: SqlxColumnAttributes,
 }
 
 fn default_new_expression() -> Expr {
@@ -90,7 +100,11 @@ fn default_new_expression() -> Expr {
 }
 
 impl ColumnProperties {
-    fn from(field: &Field, value: ColumnPropertyAttrs) -> syn::Result<Self> {
+    fn from(
+        field: &Field,
+        value: ColumnPropertyAttrs,
+        sqlx: SqlxColumnAttributes,
+    ) -> syn::Result<Self> {
         // new_expression only makes sense on the primary key field or the created_at and updated_at fields
         if (!value.is_primary_key.is_present())
             && !value.is_updated_at.is_present()
@@ -111,7 +125,7 @@ impl ColumnProperties {
         }
 
         Ok(ColumnProperties {
-            skip: value.skip.is_present(),
+            skip: sqlx.skip.is_present(),
             readonly: value.readonly.is_present(),
             primary_key: value.is_primary_key.is_present(),
             generate_by: value.generate_by.is_present(),
@@ -139,12 +153,13 @@ pub struct FieldProperties {
 impl FieldProperties {
     pub fn from(field: &Field, attributes: FieldAttributes) -> syn::Result<Self> {
         let column_name = attributes
-            .field_properties
+            .attrs
             .rename
             .clone()
             .unwrap_or_else(|| field.ident.as_ref().unwrap().to_string());
 
-        let column_properties = ColumnProperties::from(field, attributes.field_properties);
+        let column_properties =
+            ColumnProperties::from(field, attributes.field_properties, attributes.attrs);
 
         Ok(Self {
             column_properties: column_properties?,
