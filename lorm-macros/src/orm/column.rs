@@ -1,5 +1,7 @@
 use crate::attributes::ColumnProperties;
-use quote::ToTokens;
+use crate::utils::is_option_wrapped;
+use quote::__private::TokenStream;
+use quote::{ToTokens, quote};
 use syn::Field;
 use syn::Ident;
 use syn::Type;
@@ -15,6 +17,21 @@ pub(crate) struct Column<'a> {
 }
 
 impl<'a> Column<'a> {
+    /// Generate the token stream to access the field on `self`.
+    pub(crate) fn self_accessor(&self) -> TokenStream {
+        let base_ident = self.base_field.ident.as_ref().unwrap();
+        if self.is_flattened {
+            let field_ident = &self.field;
+            if is_option_wrapped(&self.base_field.ty) {
+                quote! {self.#base_ident.as_ref().map(|base| &base.#field_ident)}
+            } else {
+                quote! {&self.#base_ident.#field_ident}
+            }
+        } else {
+            quote! {&self.#base_ident}
+        }
+    }
+
     /// Whether a `by_*`, `with_*` or selector function should be generated for this column.
     ///
     /// Such a selector should be generated if any of the

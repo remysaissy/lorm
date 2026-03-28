@@ -28,6 +28,7 @@ struct User {
     #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub created_at: chrono::DateTime<FixedOffset>,
 
+    #[allow(unused)]
     #[lorm(updated_at)]
     #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub updated_at: chrono::DateTime<FixedOffset>,
@@ -65,7 +66,7 @@ async fn main() -> Result<()> {
 
     // READ
     println!("2. Reading user by ID...");
-    let found_user = User::by_id(&pool, user.id).await?;
+    let found_user = User::by_id(&pool, &user.id).await?;
     println!(
         "   Found user: {} ({})\n",
         found_user.name, found_user.email
@@ -74,7 +75,7 @@ async fn main() -> Result<()> {
     println!("2bis. Reading user by ID and email...");
     let id = found_user.id;
     let search = User::select()
-        .where_id(Where::Eq, id)
+        .where_id(Where::Eq, &id)
         .where_email(Where::Eq, "alice@example.com")
         .build(&pool)
         .await?;
@@ -98,7 +99,7 @@ async fn main() -> Result<()> {
 
     // Verify deletion
     println!("5. Verifying deletion...");
-    match User::by_id(&pool, user_id).await {
+    match User::by_id(&pool, &user_id).await {
         Ok(_) => println!("   ERROR: User still exists!"),
         Err(_) => println!("   Confirmed: User no longer exists"),
     }

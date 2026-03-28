@@ -59,6 +59,7 @@ struct AltUser {
     #[lorm(readonly)]
     pub created_at: chrono::DateTime<FixedOffset>,
 
+    #[allow(unused)]
     #[lorm(updated_at)]
     #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub updated_at: chrono::DateTime<FixedOffset>,
@@ -94,11 +95,11 @@ async fn test_user_does_not_exists() {
     let pool = get_pool().await.expect("Failed to create pool");
 
     let email = SafeEmail().fake::<String>();
-    let res = User::by_email(&pool, email).await;
+    let res = User::by_email(&pool, &email).await;
     assert_eq!(res.is_err(), true);
 
     let id = Uuid::new_v4();
-    let res = User::by_id(&pool, id).await;
+    let res = User::by_id(&pool, &id).await;
     assert_eq!(res.is_err(), true);
 }
 
@@ -111,13 +112,13 @@ async fn test_user_is_created() {
     u.email = email.clone();
     let u = u.save(&pool).await.unwrap();
 
-    let res = User::by_id(&pool, u.id).await;
+    let res = User::by_id(&pool, &u.id).await;
     assert_eq!(res.is_err(), false);
 
     let u = res.unwrap();
     assert_eq!(u.created_at.to_rfc2822() == u.updated_at.to_rfc2822(), true);
 
-    let res = User::by_email(&pool, email).await;
+    let res = User::by_email(&pool, &email).await;
     assert_eq!(res.is_err(), false);
 }
 
@@ -135,7 +136,7 @@ async fn test_user_is_updated() {
     let email = SafeEmail().fake::<String>();
     u.email = email.clone();
     let u = u.save(&pool).await.unwrap();
-    let res = User::by_id(&pool, u.id).await;
+    let res = User::by_id(&pool, &u.id).await;
     assert_eq!(res.is_err(), false);
     let u = res.unwrap();
     assert_eq!(u.email, email);
@@ -150,11 +151,11 @@ async fn test_user_is_deleted() {
     u.email = SafeEmail().fake::<String>();
     let u = u.save(&pool).await.unwrap();
 
-    let res = User::by_id(&pool, u.id).await;
+    let res = User::by_id(&pool, &u.id).await;
     assert_eq!(res.is_err(), false);
 
     u.delete(&pool).await.unwrap();
-    let res = User::by_id(&pool, u.id).await;
+    let res = User::by_id(&pool, &u.id).await;
     assert_eq!(res.is_err(), true);
 }
 

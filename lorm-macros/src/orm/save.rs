@@ -11,14 +11,78 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
 
     let full_select_columns = model.full_column_select();
 
+    // Primary key
     let primary_key = model.primary_key();
+    let primary_key_var = quote! {primary_key};
+    let pk_column = &primary_key.column_name;
+    let pk_value = primary_key.self_accessor();
+    let pk_placeholder = format!(
+        "{} = {}",
+        pk_column,
+        db_placeholder(primary_key.base_field, model.update_columns().count() + 1)?
+    );
+    let pk_is_set = &primary_key
+        .column_properties
+        .is_set(quote! { #pk_value }, &primary_key.ty);
+    let pk_code = if primary_key.column_properties.readonly {
+        quote! {}
+    } else {
+        let pk_new_method = &primary_key.column_properties.new_expression;
+        quote! {
+            let #primary_key_var = #pk_new_method;
+        }
+    };
+
+    // Created at
+    let created_at_var = quote! {created_at};
+    let created_at_code = match model.created_at() {
+        None => quote! {},
+        Some(column) => {
+            if column.column_properties.readonly {
+                quote! {}
+            } else {
+                let new_method = &column.column_properties.new_expression;
+                quote! {
+                    let #created_at_var = #new_method;
+                }
+            }
+        }
+    };
+
+    // Updated at
+    let updated_at_var = quote! {updated_at};
+    let updated_at_code = match model.updated_at() {
+        None => quote! {},
+        Some(column) => {
+            if column.column_properties.readonly {
+                quote! {}
+            } else {
+                let new_method = &column.column_properties.new_expression;
+                quote! {
+                    let #updated_at_var = #new_method;
+                }
+            }
+        }
+    };
+
+    let column_value = |column: &Column, use_created_at_var: bool| {
+        if column.column_properties.created_at && use_created_at_var {
+            created_at_var.clone()
+        } else if column.column_properties.updated_at {
+            updated_at_var.clone()
+        } else if column.column_properties.primary_key {
+            primary_key_var.clone()
+        } else {
+            column.self_accessor()
+        }
+    };
 
     // prepare `insertable` fields
     let insert_value_placeholders =
         create_insert_placeholders(&model.insert_columns().collect::<Vec<_>>());
     let insert_values = model
         .insert_columns()
-        .map(|col| col.field.clone())
+        .map(|col| column_value(col, true))
         .collect::<Vec<_>>();
     let insert_columns = model
         .insert_columns()
@@ -31,58 +95,8 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         create_update_placeholders(&model.update_columns().collect::<Vec<_>>());
     let update_values = model
         .update_columns()
-        .map(|col| col.field.clone())
+        .map(|col| column_value(col, false))
         .collect::<Vec<_>>();
-
-    // Primary key
-    let pk_column = &primary_key.column_name;
-    let pk_field = &primary_key.field;
-    let pk_placeholder = format!(
-        "{} = {}",
-        pk_column,
-        db_placeholder(primary_key.base_field, model.update_columns().count() + 1)?
-    );
-    let pk_is_set = &primary_key
-        .column_properties
-        .is_set(quote! { to_save.#pk_field }, &primary_key.ty);
-    let pk_code = if primary_key.column_properties.readonly {
-        quote! {}
-    } else {
-        let pk_new_method = &primary_key.column_properties.new_expression;
-        quote! {
-            to_save.#pk_field = #pk_new_method;
-        }
-    };
-
-    let created_at_code = match model.created_at() {
-        None => quote! {},
-        Some(column) => {
-            if column.column_properties.readonly {
-                quote! {}
-            } else {
-                let new_method = &column.column_properties.new_expression;
-                let field = &column.field;
-                quote! {
-                    to_save.#field = #new_method;
-                }
-            }
-        }
-    };
-
-    let updated_at_code = match model.updated_at() {
-        None => quote! {},
-        Some(column) => {
-            if column.column_properties.readonly {
-                quote! {}
-            } else {
-                let new_method = &column.column_properties.new_expression;
-                let field = &column.field;
-                quote! {
-                    to_save.#field = #new_method;
-                }
-            }
-        }
-    };
 
     let insert_sql_ident = format!(
         "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) RETURNING {full_select_columns}"
@@ -100,7 +114,6 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         {
             async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>
             {
-                let mut to_save = self.clone();
                 #updated_at_code
                 match #pk_is_set {
                     true => {
@@ -108,7 +121,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                         #created_at_code
                         let r = sqlx::query_as::<_, #struct_name>(#insert_sql_ident)
                         #(
-                            .bind(&to_save.#insert_values)
+                            .bind(#insert_values)
                         )*
                         .fetch_one(executor).await?;
                         Ok(r)
@@ -116,9 +129,9 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                     false => {
                         let r = sqlx::query_as::<_, #struct_name>(#update_sql_ident)
                         #(
-                            .bind(&self.#update_values)
+                            .bind(#update_values)
                         )*
-                        .bind(&self.#pk_field)
+                        .bind(#pk_value)
                         .fetch_one(executor).await?;
                         Ok(r)
                     }

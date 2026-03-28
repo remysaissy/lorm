@@ -1,5 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::get_bind_type_constraint;
+use crate::utils::{get_bind_param_type_and_usage, get_bind_type_where_constraint};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_select(
@@ -12,18 +12,27 @@ pub fn generate_select(
     let struct_name = model.struct_name;
     let struct_visibility = model.struct_visibility;
 
-    let impl_tokens: Vec<TokenStream> = model.query_columns().map(|column| {
+    let lifetime = quote! {'a};
+
+    let impl_tokens: Vec<TokenStream> = model.query_columns().map(|column| (|| -> syn::Result<_> {
         let field_name = &column.field;
         let column_name = &column.column_name;
-        let field_type_constraints = get_bind_type_constraint(column.base_field, database_type).unwrap();
+
+        let constraints = get_bind_type_where_constraint(&column.ty, database_type, &lifetime)?;
+        let parameter = quote! {value};
+        let (param_type, param_use) = get_bind_param_type_and_usage(&parameter, &column.ty, &lifetime)?;
+        let param = quote! {#parameter: #param_type};
+
         let where_between_fn = format_ident!("where_between_{}", field_name);
         let where_fn = format_ident!("where_{}", field_name);
         let having_fn = format_ident!("having_{}", field_name);
         let order_by_fn = format_ident!("order_by_{}", field_name);
         let group_by_fn = format_ident!("group_by_{}", field_name);
 
+        let (left_type, left_use) = get_bind_param_type_and_usage(&quote! {left}, &column.ty, &lifetime)?;
+        let (right_type, right_use) = get_bind_param_type_and_usage(&quote! {right}, &column.ty, &lifetime)?;
         let code = quote! {
-            #struct_visibility fn #having_fn<T: #field_type_constraints>(mut self, op: lorm::predicates::Having, fun: lorm::predicates::Function, value: T) -> #builder_struct_ident {
+            #struct_visibility fn #having_fn(mut self, op: lorm::predicates::Having, fun: lorm::predicates::Function, #param) -> Self where #constraints {
                 if self.is_having == false {
                     self.builder.push(" HAVING");
                     self.is_having = true;
@@ -36,11 +45,11 @@ pub fn generate_select(
                     _ => format!(" {}({}) {} ", fun, #column_name, op).to_string()
                 };
                 self.builder.push(stmt);
-                self.builder.push_bind(value);
+                self.builder.push_bind(#param_use);
                 self
             }
 
-            #struct_visibility fn #where_fn<T: #field_type_constraints>(mut self, op: lorm::predicates::Where, value: T) -> #builder_struct_ident {
+            #struct_visibility fn #where_fn(mut self, op: lorm::predicates::Where, #param) -> Self where #constraints {
                 if self.is_where == false {
                     self.builder.push(" WHERE");
                     self.is_where = true;
@@ -49,11 +58,11 @@ pub fn generate_select(
                 }
                 let stmt = format!(" {} {} ", #column_name, op).to_string();
                     self.builder.push(stmt);
-                    self.builder.push_bind(value);
+                    self.builder.push_bind(#param_use);
                 self
             }
 
-            #struct_visibility fn #where_between_fn<T: #field_type_constraints>(mut self, left: T, right: T) -> #builder_struct_ident {
+            #struct_visibility fn #where_between_fn(mut self, left: #left_type, right: #right_type) -> Self where #constraints {
                 if self.is_where == false {
                     self.builder.push(" WHERE");
                     self.is_where = true;
@@ -62,13 +71,13 @@ pub fn generate_select(
                 }
                 let stmt = format!(" {} BETWEEN ", #column_name).to_string();
                 self.builder.push(stmt);
-                self.builder.push_bind(left);
+                self.builder.push_bind(#left_use);
                 self.builder.push(" AND ");
-                self.builder.push_bind(right);
+                self.builder.push_bind(#right_use);
                 self
             }
 
-            #struct_visibility fn #order_by_fn(mut self) -> #builder_struct_ident {
+            #struct_visibility fn #order_by_fn(mut self) -> Self {
                 if self.is_order_by == false {
                     self.builder.push(" ORDER BY");
                     self.is_order_by = true;
@@ -80,7 +89,7 @@ pub fn generate_select(
                 self
             }
 
-            #struct_visibility fn #group_by_fn(mut self) -> #builder_struct_ident {
+            #struct_visibility fn #group_by_fn(mut self) -> Self {
                 if self.is_group_by == false {
                     self.builder.push(" GROUP BY");
                     self.is_group_by = true;
@@ -92,36 +101,36 @@ pub fn generate_select(
                 self
             }
         };
-        code
-    }).collect::<Vec<_>>();
+        Ok(code)
+    })()).collect::<Result<Vec<_>, _>>()?;
 
     let select_columns = model.full_column_select();
     let table_name = &model.table_name;
     let select_base = format!("SELECT {select_columns} from {table_name}");
 
     Ok(quote! {
-        #struct_visibility trait #trait_ident {
-            fn select() -> #builder_struct_ident;
+        #struct_visibility trait #trait_ident<#lifetime> {
+            fn select() -> #builder_struct_ident<#lifetime>;
         }
 
-        impl #trait_ident for #struct_name {
-            fn select() -> #builder_struct_ident {
+        impl<#lifetime> #trait_ident<#lifetime> for #struct_name {
+            fn select() -> #builder_struct_ident<#lifetime> {
                 let builder = sqlx::QueryBuilder::new(#select_base);
                 #builder_struct_ident { builder, is_where: false, is_having: false, is_group_by: false, is_order_by: false }
             }
         }
 
         #[derive(Default)]
-        #struct_visibility struct #builder_struct_ident {
-            builder: sqlx::QueryBuilder<'static, #database_type>,
+        #struct_visibility struct #builder_struct_ident<#lifetime> {
+            builder: sqlx::QueryBuilder<#lifetime, #database_type>,
             is_where: bool,
             is_having: bool,
             is_group_by: bool,
             is_order_by: bool
         }
 
-        impl #builder_struct_ident {
-            #struct_visibility fn having_all_count(mut self, op: lorm::predicates::Having, value: i64) -> #builder_struct_ident {
+        impl<#lifetime> #builder_struct_ident<#lifetime> {
+            #struct_visibility fn having_all_count(mut self, op: lorm::predicates::Having, value: i64) -> Self {
                 if self.is_having == false {
                     self.builder.push(" HAVING");
                     self.is_having = true;
@@ -134,23 +143,23 @@ pub fn generate_select(
                 self
             }
 
-            #struct_visibility fn asc(mut self) -> #builder_struct_ident {
+            #struct_visibility fn asc(mut self) -> Self {
                 self.builder.push(" ASC ");
                 self
             }
 
-            #struct_visibility fn desc(mut self) -> #builder_struct_ident {
+            #struct_visibility fn desc(mut self) -> Self {
                 self.builder.push(" DESC ");
                 self
             }
 
-            #struct_visibility fn limit(mut self, limit: i64) -> #builder_struct_ident {
+            #struct_visibility fn limit(mut self, limit: i64) -> Self {
                 self.builder.push(" LIMIT ");
                 self.builder.push_bind(limit);
                 self
             }
 
-            #struct_visibility fn offset(mut self, offset: i64) -> #builder_struct_ident {
+            #struct_visibility fn offset(mut self, offset: i64) -> Self {
                 self.builder.push(" OFFSET ");
                 self.builder.push_bind(offset);
                 self
