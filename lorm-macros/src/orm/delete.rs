@@ -10,11 +10,11 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
 
     // Primary key
     let primary_key = model.primary_key();
-    let pk_field = &primary_key.field;
+    let pk_value = primary_key.self_accessor();
     let pk_column = &primary_key.column_name;
     let pk_placeholder = format!(
         "{pk_column} = {}",
-        db_placeholder(primary_key.base_field, 1).unwrap()
+        db_placeholder(primary_key.base_field, 1)?
     );
     let sql_ident = format!("DELETE FROM {table_name} WHERE {pk_placeholder}");
 
@@ -26,7 +26,7 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
         impl<'e, E: #executor_type> #trait_ident<'e, E> for #struct_name {
             async fn delete(&self, executor: E) -> lorm::errors::Result<()> {
                 sqlx::query(#sql_ident)
-                .bind(&self.#pk_field)
+                .bind(#pk_value)
                 .execute(executor).await?;
                 Ok(())
             }

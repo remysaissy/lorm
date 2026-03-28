@@ -1,5 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::{db_placeholder, get_bind_type_constraint};
+use crate::utils::{db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_by(
@@ -15,20 +15,29 @@ pub fn generate_by(
     let stream: Vec<(TokenStream, TokenStream)> = model.query_columns().map(|column| {
         let field_name = &column.field;
         let column_name = &column.column_name;
-        let field_type_constraints = get_bind_type_constraint(column.base_field, database_type).unwrap();
+
+        let lifetime = quote! {'a};
+        let parameter = quote! {value};
+        let field_type_constraints = get_bind_type_where_constraint(&column.ty, database_type, &lifetime).unwrap();
+        let (param_type, param_value) = get_bind_param_type_and_usage(&parameter, &column.ty, &lifetime).unwrap();
         let by_fn = format_ident!("by_{}", field_name);
 
         let columns = model.full_column_select();
         let placeholder = db_placeholder(column.base_field, 1).unwrap();
         let sql_ident = format!("SELECT {columns} FROM {table_name} WHERE {column_name} = {placeholder}");
+
+        let signature = quote! {
+            async fn #by_fn<#lifetime>(executor: E, #parameter: #param_type) -> lorm::errors::Result<#struct_name> where #field_type_constraints
+        };
+
         let trait_code = quote! {
-            async fn #by_fn<T: #field_type_constraints>(executor: E, value: T) -> lorm::errors::Result<#struct_name>;
+            #signature;
         };
 
         let impl_code = quote! {
-            async fn #by_fn<T: #field_type_constraints>(executor: E, value: T) -> lorm::errors::Result<#struct_name> {
+            #signature {
                 let r = sqlx::query_as::<_, #struct_name>(#sql_ident)
-                    .bind(value)
+                    .bind(#param_value)
                     .fetch_one(executor).await?;
                 Ok(r)
             }

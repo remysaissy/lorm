@@ -46,8 +46,8 @@ async fn main() -> Result<()> {
     println!("   Created user: {} {}\n", user.id, user.email);
 
     let s = User::select()
-        .where_id(Where::Eq, id)
-        .where_email(Where::Eq, user.email)
+        .where_id(Where::Eq, &id)
+        .where_email(Where::Eq, &user.email)
         .order_by_email()
         .asc()
         .build(&pool)

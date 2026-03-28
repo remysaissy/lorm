@@ -139,7 +139,7 @@ impl ColumnProperties {
     pub fn is_set(&self, base: TokenStream, ty: &Type) -> TokenStream {
         match &self.is_set_expression {
             Some(expr) => quote! {#base.#expr},
-            None => quote! {#base == #ty::default()},
+            None => quote! {*#base == #ty::default()},
         }
     }
 }

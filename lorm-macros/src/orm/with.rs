@@ -1,5 +1,5 @@
 use crate::models::OrmModel;
-use crate::utils::{db_placeholder, get_bind_type_constraint};
+use crate::utils::{db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_with(
@@ -13,27 +13,37 @@ pub fn generate_with(
     let table_name = &model.table_name;
     let table_columns = model.full_column_select();
 
-    let stream: Vec<(TokenStream, TokenStream)> = model.query_columns().map(|column| {
+    let stream: Vec<(TokenStream, TokenStream)> = model.query_columns().map(|column| (|| -> syn::Result<_> {
         let field_name = &column.field;
         let column_name = &column.column_name;
-        let field_type_constraints = get_bind_type_constraint(column.base_field, database_type).unwrap();
+
+        let lifetime = quote! {'a};
+
+        let constraints = get_bind_type_where_constraint(&column.ty, database_type, &lifetime).unwrap();
+        let param = quote! {value};
+        let (param_type, param_value) = get_bind_param_type_and_usage(&param, &column.ty, &lifetime)?;
+
         let with_fn = format_ident!("with_{}",field_name);
         let placeholder = db_placeholder(column.base_field, 1).unwrap();
+
+        let signature = quote! {
+            async fn #with_fn<#lifetime>(executor: E, #param: #param_type) -> lorm::errors::Result<Vec<#struct_name>> where #constraints
+        };
         let trait_code = quote! {
-            async fn #with_fn<T: #field_type_constraints>(executor: E, value: T) -> lorm::errors::Result<Vec<#struct_name>>;
+            #signature;
         };
         let sql_ident = format!("SELECT {table_columns} FROM {table_name} WHERE {column_name} = {placeholder}");
 
         let impl_code = quote! {
-            async fn #with_fn<T: #field_type_constraints>(executor: E, value: T) -> lorm::errors::Result<Vec<#struct_name>> {
+            #signature {
                 let r = sqlx::query_as::<_, Self>(#sql_ident)
-                    .bind(value)
+                    .bind(#param_value)
                     .fetch_all(executor).await?;
                 Ok(r)
             }
         };
-        (trait_code, impl_code)
-    }).collect::<Vec<(_, _)>>();
+        Ok((trait_code, impl_code))
+    })()).collect::<Result<Vec<(_, _)>, _>>()?;
     let (trait_tokens, impl_tokens): (Vec<TokenStream>, Vec<TokenStream>) =
         stream.into_iter().unzip();
 
