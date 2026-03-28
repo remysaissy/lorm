@@ -23,6 +23,7 @@ heck = { workspace = true }
 quote = { workspace = true, features = ["proc-macro"] }
 syn = { workspace = true, features = ["proc-macro", "derive", "parsing", "printing", "extra-traits"] }
 pluralizer = { workspace = true }
+darling = "0.23.0"
 
 [features]
 default = ["sqlite"]
