@@ -28,7 +28,6 @@ struct User {
     pub count: Option<i32>,
 
     #[allow(unused)]
-    #[lorm(skip)]
     #[sqlx(skip)]
     pub tmp: i64,
 
@@ -49,6 +48,7 @@ struct AltUser {
     pub id: i32,
 
     #[lorm(by)]
+    #[sqlx(rename = "e_mail")]
     pub email: String,
 
     #[lorm(by)]
