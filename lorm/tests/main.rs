@@ -59,6 +59,7 @@ struct AltUser {
     #[lorm(readonly)]
     pub created_at: chrono::DateTime<FixedOffset>,
 
+    #[allow(unused)]
     #[lorm(updated_at)]
     #[lorm(new = "chrono::Utc::now().fixed_offset()")]
     pub updated_at: chrono::DateTime<FixedOffset>,
