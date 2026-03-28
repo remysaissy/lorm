@@ -48,6 +48,7 @@ struct AltUser {
     pub id: i32,
 
     #[lorm(by)]
+    #[sqlx(rename = "e_mail")]
     pub email: String,
 
     #[lorm(by)]
