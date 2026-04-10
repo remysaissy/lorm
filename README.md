@@ -27,17 +27,31 @@ uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 ```
 
-**Note**: Replace `sqlite` with your preferred database driver (`postgres`, `mysql`).
+To use a different database backend, change **both** the `lorm` and `sqlx` features:
+
+```toml
+# PostgreSQL
+lorm = { version = "0.2", default-features = false, features = ["postgres"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
+
+# MySQL / MariaDB
+lorm = { version = "0.2", default-features = false, features = ["mysql"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "mysql"] }
+```
 
 ### Supported Databases
 
-Lorm supports almost all databases that SQLx supports:
+Lorm supports the same database backends as SQLx:
 
-- **PostgreSQL** - Use `features = ["postgres"]` in sqlx
-- **MySQL / MariaDB** - Use `features = ["mysql"]` in sqlx
-- **SQLite** - Use `features = ["sqlite"]` in sqlx
+- **SQLite** (default) - `features = ["sqlite"]`
+- **PostgreSQL** - `features = ["postgres"]`
+- **MySQL / MariaDB** - `features = ["mysql"]`
 
-All features work consistently across database backends.
+The `sqlite`, `postgres`, and `mysql` features are **mutually exclusive** — only one database backend can be active at a time.
+
+**MySQL-specific notes:**
+- Timestamp fields must use `chrono::DateTime<chrono::Utc>` instead of `DateTime<FixedOffset>` (MySQL's sqlx driver does not support `FixedOffset`)
+- The `save()` method requires the executor to implement `Copy` (works with `&Pool`, not with `&mut Transaction`)
 
 ### Usage
 
@@ -172,7 +186,7 @@ Lorm generates a fluent query builder using `::select()`. The builder supports f
 - `order_by_{field}().desc()` - Descending order
 
 **Grouping** (available for `#[lorm(by)]` fields):
-- `group_by_{field}()` - Group results by field
+- `group_by_{field}()` - Group results by field. All remaining SELECT columns are automatically added to the GROUP BY clause for SQL standard compliance across all backends.
 
 **Pagination**:
 - `limit(n)` - Limit number of results
@@ -342,11 +356,7 @@ cargo expand --test main
 
 ### Does Lorm work with connection pools?
 
-Yes! Lorm works seamlessly with both:
-- SQLx connection pools (`Pool`)
-- Transactions (`Transaction`)
-
-The same methods work with both.
+Yes! Lorm works with SQLx connection pools (`&Pool`) on all backends. On SQLite and PostgreSQL, it also works with transactions (`&mut Transaction`). On MySQL, the `save()` method requires a `Copy` executor, so it only works with `&Pool`.
 
 ### How do I handle composite primary keys?
 
