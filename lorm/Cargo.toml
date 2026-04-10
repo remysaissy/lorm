@@ -22,14 +22,14 @@ postgres = ["lorm-macros/postgres", "sqlx/postgres"]
 mysql = ["lorm-macros/mysql", "sqlx/mysql"]
 
 [dependencies]
-lorm-macros = { path = "../lorm-macros", version = "0.2.2" }
+lorm-macros = { path = "../lorm-macros", version = "0.2.2", default-features = false }
 sqlx = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["std", "derive"] }
 thiserror = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-sqlx = { workspace = true, features = ["sqlite", "runtime-tokio-rustls", "chrono", "derive", "uuid", "migrate"] }
+sqlx = { workspace = true, features = ["runtime-tokio-rustls", "chrono", "derive", "uuid", "migrate"] }
 chrono = { workspace = true, features = ["std", "serde"] }
 uuid = { workspace = true, features = ["std", "serde", "v4"] }
 fake = { workspace = true }
