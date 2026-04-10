@@ -141,9 +141,8 @@ main() {
         print_info "Using default features"
     fi
 
-    # Run tests
     print_info "Running tests..."
-    cargo test $cargo_flags
+    cargo test --lib --tests $cargo_flags
 
     echo ""
     print_success "Tests complete!"
