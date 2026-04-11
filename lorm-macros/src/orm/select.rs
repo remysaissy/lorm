@@ -33,6 +33,7 @@ pub fn generate_select(
         let (right_type, right_use) = get_bind_param_type_and_usage(&quote! {right}, &column.ty, &lifetime)?;
         let code = quote! {
             #struct_visibility fn #having_fn(mut self, op: lorm::predicates::Having, fun: lorm::predicates::Function, #param) -> Self where #constraints {
+                self.complete_group_by();
                 if self.is_having == false {
                     self.builder.push(" HAVING");
                     self.is_having = true;
@@ -78,6 +79,7 @@ pub fn generate_select(
             }
 
             #struct_visibility fn #order_by_fn(mut self) -> Self {
+                self.complete_group_by();
                 if self.is_order_by == false {
                     self.builder.push(" ORDER BY");
                     self.is_order_by = true;
@@ -90,6 +92,7 @@ pub fn generate_select(
             }
 
             #struct_visibility fn #group_by_fn(mut self) -> Self {
+                self.grouped_columns.push(#column_name.to_string());
                 if self.is_group_by == false {
                     self.builder.push(" GROUP BY");
                     self.is_group_by = true;
@@ -105,6 +108,11 @@ pub fn generate_select(
     })()).collect::<Result<Vec<_>, _>>()?;
 
     let select_columns = model.full_column_select();
+    let all_column_names: Vec<&str> = model
+        .columns
+        .iter()
+        .map(|c| c.column_name.as_str())
+        .collect();
     let table_name = &model.table_name;
     let select_base = format!("SELECT {select_columns} from {table_name}");
 
@@ -116,21 +124,45 @@ pub fn generate_select(
         impl<#lifetime> #trait_ident<#lifetime> for #struct_name {
             fn select() -> #builder_struct_ident<#lifetime> {
                 let builder = sqlx::QueryBuilder::new(#select_base);
-                #builder_struct_ident { builder, is_where: false, is_having: false, is_group_by: false, is_order_by: false }
+                #builder_struct_ident {
+                    builder,
+                    all_columns: vec![#(#all_column_names.to_string()),*],
+                    grouped_columns: Vec::new(),
+                    is_where: false,
+                    is_having: false,
+                    is_group_by: false,
+                    group_by_completed: false,
+                    is_order_by: false,
+                }
             }
         }
 
-        #[derive(Default)]
         #struct_visibility struct #builder_struct_ident<#lifetime> {
             builder: sqlx::QueryBuilder<#lifetime, #database_type>,
+            all_columns: Vec<String>,
+            grouped_columns: Vec<String>,
             is_where: bool,
             is_having: bool,
             is_group_by: bool,
+            group_by_completed: bool,
             is_order_by: bool
         }
 
         impl<#lifetime> #builder_struct_ident<#lifetime> {
+            fn complete_group_by(&mut self) {
+                if self.is_group_by && !self.group_by_completed {
+                    let remaining: Vec<&String> = self.all_columns.iter()
+                        .filter(|c| !self.grouped_columns.contains(c))
+                        .collect();
+                    if !remaining.is_empty() {
+                        self.builder.push(format!(", {}", remaining.iter().map(|s| s.as_str()).collect::<Vec<&str>>().join(", ")));
+                    }
+                    self.group_by_completed = true;
+                }
+            }
+
             #struct_visibility fn having_all_count(mut self, op: lorm::predicates::Having, value: i64) -> Self {
+                self.complete_group_by();
                 if self.is_having == false {
                     self.builder.push(" HAVING");
                     self.is_having = true;
@@ -154,6 +186,7 @@ pub fn generate_select(
             }
 
             #struct_visibility fn limit(mut self, limit: i64) -> Self {
+                self.complete_group_by();
                 self.builder.push(" LIMIT ");
                 self.builder.push_bind(limit);
                 self
@@ -168,6 +201,7 @@ pub fn generate_select(
             #(#impl_tokens)*
 
             #struct_visibility async fn build<'e, E: #executor_type>(mut self, executor: E) -> lorm::errors::Result<Vec<#struct_name>> {
+                self.complete_group_by();
                 let r = self
                     .builder
                     .build_query_as::<_>()

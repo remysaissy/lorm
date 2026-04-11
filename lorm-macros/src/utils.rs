@@ -118,14 +118,14 @@ pub(crate) fn db_placeholder(field: &Field, index: usize) -> syn::Result<String>
 
 /// Generates the SQLx executor type token based on the enabled database feature.
 ///
-/// Returns `PgExecutor`, `SqliteExecutor`, or `MysqlExecutor` depending on which feature is enabled.
+/// Returns `PgExecutor`, `SqliteExecutor`, or `MySqlExecutor` depending on which feature is enabled.
 pub(crate) fn executor_type(input: &DeriveInput) -> syn::Result<TokenStream> {
     if cfg!(feature = "postgres") {
         Ok(quote!(sqlx::PgExecutor<'e>))
     } else if cfg!(feature = "sqlite") {
         Ok(quote!(sqlx::SqliteExecutor<'e>))
     } else if cfg!(feature = "mysql") {
-        Ok(quote!(sqlx::MysqlExecutor<'e>))
+        Ok(quote!(sqlx::MySqlExecutor<'e>))
     } else {
         Err(syn::Error::new(
             input.span(),
@@ -136,14 +136,14 @@ pub(crate) fn executor_type(input: &DeriveInput) -> syn::Result<TokenStream> {
 
 /// Generates the SQLx database type token based on the enabled database feature.
 ///
-/// Returns `Postgres`, `Sqlite`, or `Mysql` depending on which feature is enabled.
+/// Returns `Postgres`, `Sqlite`, or `MySql` depending on which feature is enabled.
 pub(crate) fn database_type(input: &DeriveInput) -> syn::Result<TokenStream> {
     if cfg!(feature = "postgres") {
         Ok(quote!(sqlx::Postgres))
     } else if cfg!(feature = "sqlite") {
         Ok(quote!(sqlx::Sqlite))
     } else if cfg!(feature = "mysql") {
-        Ok(quote!(sqlx::Mysql))
+        Ok(quote!(sqlx::MySql))
     } else {
         Err(syn::Error::new(
             input.span(),

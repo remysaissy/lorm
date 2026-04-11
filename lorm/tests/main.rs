@@ -1,75 +1,156 @@
 use anyhow::Result;
-use chrono::FixedOffset;
 use fake::Fake;
 use fake::faker::internet::en::SafeEmail;
-use lorm::ToLOrm;
 use lorm::predicates::{Function, Having, Where};
-use sqlx::migrate::MigrateDatabase;
-use sqlx::{Executor, FromRow, Sqlite, SqlitePool};
+use sqlx::Executor;
 use std::ops::Add;
 use std::time::Duration;
 use tokio::fs;
 use tokio::time::{Instant, sleep_until};
 use uuid::Uuid;
 
-#[derive(Debug, Default, Clone, FromRow, ToLOrm)]
-struct User {
-    #[lorm(pk)]
-    #[lorm(new = "Uuid::new_v4()")]
-    // Default is used but a boolean check function can also be used.
-    #[lorm(is_set = "is_nil()")]
-    pub id: Uuid,
+#[cfg(feature = "sqlite")]
+use sqlx::{Sqlite, SqlitePool, migrate::MigrateDatabase};
 
-    #[lorm(by)]
-    pub email: String,
+#[cfg(feature = "postgres")]
+use sqlx::PgPool;
 
-    #[allow(unused)]
-    #[lorm(readonly)]
-    pub count: Option<i32>,
+#[cfg(feature = "mysql")]
+use sqlx::MySqlPool;
 
-    #[allow(unused)]
-    #[sqlx(skip)]
-    pub tmp: i64,
+#[cfg(feature = "sqlite")]
+type Pool = SqlitePool;
+#[cfg(feature = "postgres")]
+type Pool = PgPool;
+#[cfg(feature = "mysql")]
+type Pool = MySqlPool;
 
-    #[lorm(created_at)]
-    #[lorm(new = "chrono::Utc::now().fixed_offset()")]
-    pub created_at: chrono::DateTime<FixedOffset>,
+#[cfg(any(feature = "sqlite", feature = "postgres"))]
+mod models {
+    use chrono::FixedOffset;
+    use lorm::ToLOrm;
+    use sqlx::FromRow;
+    use uuid::Uuid;
 
-    #[lorm(updated_at)]
-    #[lorm(new = "chrono::Utc::now().fixed_offset()")]
-    pub updated_at: chrono::DateTime<FixedOffset>,
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    pub struct User {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        // Default is used but a boolean check function can also be used.
+        #[lorm(is_set = "is_nil()")]
+        pub id: Uuid,
+
+        #[lorm(by)]
+        pub email: String,
+
+        #[allow(unused)]
+        #[lorm(readonly)]
+        pub count: Option<i32>,
+
+        #[allow(unused)]
+        #[sqlx(skip)]
+        pub tmp: i64,
+
+        #[lorm(created_at)]
+        #[lorm(new = "chrono::Utc::now().fixed_offset()")]
+        pub created_at: chrono::DateTime<FixedOffset>,
+
+        #[lorm(updated_at)]
+        #[lorm(new = "chrono::Utc::now().fixed_offset()")]
+        pub updated_at: chrono::DateTime<FixedOffset>,
+    }
+
+    /// Alternative user specifically for testing id with another type.
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    pub struct AltUser {
+        #[lorm(pk)]
+        #[lorm(readonly)]
+        pub id: i32,
+
+        #[lorm(by)]
+        #[sqlx(rename = "e_mail")]
+        pub email: String,
+
+        #[lorm(by)]
+        pub count: Option<i32>,
+
+        #[allow(unused)]
+        #[lorm(created_at)]
+        #[lorm(readonly)]
+        pub created_at: chrono::DateTime<FixedOffset>,
+
+        #[allow(unused)]
+        #[lorm(updated_at)]
+        #[lorm(new = "chrono::Utc::now().fixed_offset()")]
+        pub updated_at: chrono::DateTime<FixedOffset>,
+    }
 }
 
-/// Alternative user specifically for testing id with another type.
-#[derive(Debug, Default, Clone, FromRow, ToLOrm)]
-struct AltUser {
-    #[lorm(pk)]
-    #[lorm(readonly)]
-    pub id: i32,
+#[cfg(feature = "mysql")]
+mod models {
+    use chrono::Utc;
+    use lorm::ToLOrm;
+    use sqlx::FromRow;
+    use uuid::Uuid;
 
-    #[lorm(by)]
-    #[sqlx(rename = "e_mail")]
-    pub email: String,
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    pub struct User {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        // Default is used but a boolean check function can also be used.
+        #[lorm(is_set = "is_nil()")]
+        pub id: Uuid,
 
-    #[lorm(by)]
-    pub count: Option<i32>,
+        #[lorm(by)]
+        pub email: String,
 
-    #[allow(unused)]
-    #[lorm(created_at)]
-    #[lorm(readonly)]
-    pub created_at: chrono::DateTime<FixedOffset>,
+        #[allow(unused)]
+        #[lorm(readonly)]
+        pub count: Option<i32>,
 
-    #[allow(unused)]
-    #[lorm(updated_at)]
-    #[lorm(new = "chrono::Utc::now().fixed_offset()")]
-    pub updated_at: chrono::DateTime<FixedOffset>,
+        #[allow(unused)]
+        #[sqlx(skip)]
+        pub tmp: i64,
+
+        #[lorm(created_at)]
+        #[lorm(new = "chrono::Utc::now()")]
+        pub created_at: chrono::DateTime<Utc>,
+
+        #[lorm(updated_at)]
+        #[lorm(new = "chrono::Utc::now()")]
+        pub updated_at: chrono::DateTime<Utc>,
+    }
+
+    /// Alternative user specifically for testing id with another type.
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    pub struct AltUser {
+        #[lorm(pk)]
+        #[lorm(readonly)]
+        pub id: i32,
+
+        #[lorm(by)]
+        #[sqlx(rename = "e_mail")]
+        pub email: String,
+
+        #[lorm(by)]
+        pub count: Option<i32>,
+
+        #[allow(unused)]
+        #[lorm(created_at)]
+        #[lorm(readonly)]
+        pub created_at: chrono::DateTime<Utc>,
+
+        #[allow(unused)]
+        #[lorm(updated_at)]
+        #[lorm(new = "chrono::Utc::now()")]
+        pub updated_at: chrono::DateTime<Utc>,
+    }
 }
 
-pub async fn get_conn(pool: SqlitePool) -> SqlitePool {
-    pool
-}
+use models::*;
 
-pub async fn get_pool() -> Result<SqlitePool> {
+#[cfg(feature = "sqlite")]
+pub async fn get_pool() -> Result<Pool> {
     let database_name = Uuid::new_v4().to_string();
     let mut db_path = std::env::temp_dir();
     db_path = db_path.join(format!("{}.db", database_name));
@@ -79,11 +160,82 @@ pub async fn get_pool() -> Result<SqlitePool> {
         Sqlite::drop_database(&database_url).await?;
     }
     Sqlite::create_database(&database_url).await?;
-    let pool = SqlitePool::connect(&database_url).await?;
-    let migration_path = fs::canonicalize("tests/resources/migrations").await?;
+    let pool = Pool::connect(&database_url).await?;
+    let migration_path = fs::canonicalize("tests/resources/migrations/sqlite").await?;
     let mut dir = fs::read_dir(migration_path).await?;
     while let Some(entry) = dir.next_entry().await? {
         let bytes = fs::read(entry.path()).await?;
+        let content = String::from_utf8(bytes)?;
+        pool.execute(content.as_str()).await?;
+    }
+    Ok(pool)
+}
+
+#[cfg(feature = "postgres")]
+pub async fn get_pool() -> Result<Pool> {
+    let base_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://lorm:lorm@localhost:5432/lorm_test".to_string());
+
+    let db_name = format!("lorm_test_{}", Uuid::new_v4().simple());
+    let admin_pool = Pool::connect(&base_url).await?;
+    admin_pool
+        .execute(format!("CREATE DATABASE \"{db_name}\"").as_str())
+        .await?;
+    admin_pool.close().await;
+
+    let test_url = base_url.rsplit_once('/').map_or_else(
+        || format!("{base_url}/{db_name}"),
+        |(base, _)| format!("{base}/{db_name}"),
+    );
+    let pool = Pool::connect(&test_url).await?;
+
+    let migration_path = fs::canonicalize("tests/resources/migrations/postgres").await?;
+    let mut entries: Vec<_> = Vec::new();
+    let mut dir = fs::read_dir(migration_path).await?;
+    while let Some(entry) = dir.next_entry().await? {
+        entries.push(entry.path());
+    }
+    entries.sort();
+    for path in entries {
+        let bytes = fs::read(&path).await?;
+        let content = String::from_utf8(bytes)?;
+        pool.execute(content.as_str()).await?;
+    }
+    Ok(pool)
+}
+
+#[cfg(feature = "mysql")]
+pub async fn get_pool() -> Result<Pool> {
+    let base_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "mysql://lorm:lorm@localhost:3306/lorm_test".to_string());
+    let admin_url = std::env::var("DATABASE_ADMIN_URL")
+        .unwrap_or_else(|_| "mysql://root:lorm@localhost:3306/lorm_test".to_string());
+
+    let db_name = format!("lorm_test_{}", Uuid::new_v4().simple());
+    let admin_pool = Pool::connect(&admin_url).await?;
+    admin_pool
+        .execute(format!("CREATE DATABASE `{db_name}`").as_str())
+        .await?;
+    admin_pool
+        .execute(format!("GRANT ALL PRIVILEGES ON `{db_name}`.* TO 'lorm'@'%'").as_str())
+        .await?;
+    admin_pool.close().await;
+
+    let test_url = base_url.rsplit_once('/').map_or_else(
+        || format!("{base_url}/{db_name}"),
+        |(base, _)| format!("{base}/{db_name}"),
+    );
+    let pool = Pool::connect(&test_url).await?;
+
+    let migration_path = fs::canonicalize("tests/resources/migrations/mysql").await?;
+    let mut entries: Vec<_> = Vec::new();
+    let mut dir = fs::read_dir(migration_path).await?;
+    while let Some(entry) = dir.next_entry().await? {
+        entries.push(entry.path());
+    }
+    entries.sort();
+    for path in entries {
+        let bytes = fs::read(&path).await?;
         let content = String::from_utf8(bytes)?;
         pool.execute(content.as_str()).await?;
     }
@@ -312,6 +464,7 @@ async fn test_having_is_working() {
     assert_eq!(res.len(), 1);
 }
 
+#[cfg(feature = "sqlite")]
 async fn create_users<'e, E: sqlx::SqliteExecutor<'e> + Copy>(
     conn: E,
     count: i32,
@@ -322,8 +475,8 @@ async fn create_users<'e, E: sqlx::SqliteExecutor<'e> + Copy>(
         let email = SafeEmail().fake::<String>();
         let mut u = User::default();
         u.email = match prefix {
-            None => format!("{i}-{email}").to_string(),
-            Some(v) => format!("{v}-{email}").to_string(),
+            None => format!("{i}-{email}"),
+            Some(v) => format!("{v}-{email}"),
         };
         u.count = Some(i);
         let u = u.save(conn).await.unwrap();
@@ -332,6 +485,49 @@ async fn create_users<'e, E: sqlx::SqliteExecutor<'e> + Copy>(
     users
 }
 
+#[cfg(feature = "postgres")]
+async fn create_users<'e, E: sqlx::PgExecutor<'e> + Copy>(
+    conn: E,
+    count: i32,
+    prefix: Option<&'static str>,
+) -> Vec<User> {
+    let mut users = vec![];
+    for i in 0..count {
+        let email = SafeEmail().fake::<String>();
+        let mut u = User::default();
+        u.email = match prefix {
+            None => format!("{i}-{email}"),
+            Some(v) => format!("{v}-{email}"),
+        };
+        u.count = Some(i);
+        let u = u.save(conn).await.unwrap();
+        users.push(u);
+    }
+    users
+}
+
+#[cfg(feature = "mysql")]
+async fn create_users<'e, E: sqlx::MySqlExecutor<'e> + Copy>(
+    conn: E,
+    count: i32,
+    prefix: Option<&'static str>,
+) -> Vec<User> {
+    let mut users = vec![];
+    for i in 0..count {
+        let email = SafeEmail().fake::<String>();
+        let mut u = User::default();
+        u.email = match prefix {
+            None => format!("{i}-{email}"),
+            Some(v) => format!("{v}-{email}"),
+        };
+        u.count = Some(i);
+        let u = u.save(conn).await.unwrap();
+        users.push(u);
+    }
+    users
+}
+
+#[cfg(feature = "sqlite")]
 async fn create_alt_users<'e, E: sqlx::SqliteExecutor<'e> + Copy>(
     conn: E,
     count: i32,
@@ -340,7 +536,38 @@ async fn create_alt_users<'e, E: sqlx::SqliteExecutor<'e> + Copy>(
     for i in 0..count {
         let email = SafeEmail().fake::<String>();
         let mut u = AltUser::default();
-        u.email = format!("{i}-{email}").to_string();
+        u.email = format!("{i}-{email}");
+        u.count = Some(i);
+        let u = u.save(conn).await.unwrap();
+        users.push(u);
+    }
+    users
+}
+
+#[cfg(feature = "postgres")]
+async fn create_alt_users<'e, E: sqlx::PgExecutor<'e> + Copy>(conn: E, count: i32) -> Vec<AltUser> {
+    let mut users = vec![];
+    for i in 0..count {
+        let email = SafeEmail().fake::<String>();
+        let mut u = AltUser::default();
+        u.email = format!("{i}-{email}");
+        u.count = Some(i);
+        let u = u.save(conn).await.unwrap();
+        users.push(u);
+    }
+    users
+}
+
+#[cfg(feature = "mysql")]
+async fn create_alt_users<'e, E: sqlx::MySqlExecutor<'e> + Copy>(
+    conn: E,
+    count: i32,
+) -> Vec<AltUser> {
+    let mut users = vec![];
+    for i in 0..count {
+        let email = SafeEmail().fake::<String>();
+        let mut u = AltUser::default();
+        u.email = format!("{i}-{email}");
         u.count = Some(i);
         let u = u.save(conn).await.unwrap();
         users.push(u);
