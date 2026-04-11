@@ -98,28 +98,84 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         .map(|col| column_value(col, false))
         .collect::<Vec<_>>();
 
-    let insert_sql_ident = format!(
+    let insert_sql_returning = format!(
         "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) RETURNING {full_select_columns}"
     );
-    let update_sql_ident = format!(
+    let update_sql_returning = format!(
         "UPDATE {table_name} SET {update_value_placeholders} WHERE {pk_placeholder} RETURNING {full_select_columns}"
     );
 
-    Ok(quote! {
-        #struct_visibility trait #save_trait_ident<'e, E: #executor_type>: Sized {
-            async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>;
-        }
+    let insert_sql_no_returning =
+        format!("INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders})");
+    let update_sql_no_returning =
+        format!("UPDATE {table_name} SET {update_value_placeholders} WHERE {pk_placeholder}");
+    let select_by_pk_sql = format!(
+        "SELECT {full_select_columns} from {table_name} WHERE {pk_column} = {}",
+        db_placeholder(primary_key.base_field, 1)?
+    );
 
-        impl<'e, E: #executor_type> #save_trait_ident<'e, E> for #struct_name
-        {
-            async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>
-            {
+    let mysql_insert_fetch = if primary_key.column_properties.readonly {
+        quote! {
+            let insert_result = sqlx::query(#insert_sql_no_returning)
+            #(
+                .bind(#insert_values)
+            )*
+            .execute(executor).await?;
+            let last_id = insert_result.last_insert_id() as i64;
+            let r = sqlx::query_as::<_, #struct_name>(#select_by_pk_sql)
+                .bind(last_id)
+                .fetch_one(executor).await?;
+        }
+    } else {
+        quote! {
+            sqlx::query(#insert_sql_no_returning)
+            #(
+                .bind(#insert_values)
+            )*
+            .execute(executor).await?;
+            let r = sqlx::query_as::<_, #struct_name>(#select_by_pk_sql)
+                .bind(#primary_key_var)
+                .fetch_one(executor).await?;
+        }
+    };
+
+    let (executor_bound, save_body) = if cfg!(feature = "mysql") {
+        (
+            quote! { E: #executor_type + Copy },
+            quote! {
                 #updated_at_code
                 match #pk_is_set {
                     true => {
                         #pk_code
                         #created_at_code
-                        let r = sqlx::query_as::<_, #struct_name>(#insert_sql_ident)
+                        #mysql_insert_fetch
+                        Ok(r)
+                    },
+                    false => {
+                        sqlx::query(#update_sql_no_returning)
+                        #(
+                            .bind(#update_values)
+                        )*
+                        .bind(#pk_value)
+                        .execute(executor).await?;
+                        let r = sqlx::query_as::<_, #struct_name>(#select_by_pk_sql)
+                            .bind(#pk_value)
+                            .fetch_one(executor).await?;
+                        Ok(r)
+                    }
+                }
+            },
+        )
+    } else {
+        (
+            quote! { E: #executor_type },
+            quote! {
+                #updated_at_code
+                match #pk_is_set {
+                    true => {
+                        #pk_code
+                        #created_at_code
+                        let r = sqlx::query_as::<_, #struct_name>(#insert_sql_returning)
                         #(
                             .bind(#insert_values)
                         )*
@@ -127,7 +183,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                         Ok(r)
                     },
                     false => {
-                        let r = sqlx::query_as::<_, #struct_name>(#update_sql_ident)
+                        let r = sqlx::query_as::<_, #struct_name>(#update_sql_returning)
                         #(
                             .bind(#update_values)
                         )*
@@ -136,6 +192,20 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                         Ok(r)
                     }
                 }
+            },
+        )
+    };
+
+    Ok(quote! {
+        #struct_visibility trait #save_trait_ident<'e, #executor_bound>: Sized {
+            async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>;
+        }
+
+        impl<'e, #executor_bound> #save_trait_ident<'e, E> for #struct_name
+        {
+            async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>
+            {
+                #save_body
             }
         }
     })
