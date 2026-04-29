@@ -121,6 +121,7 @@ pub fn generate_select(
             fn select() -> #builder_struct_ident<#lifetime>;
         }
 
+        #[automatically_derived]
         impl<#lifetime> #trait_ident<#lifetime> for #struct_name {
             fn select() -> #builder_struct_ident<#lifetime> {
                 let builder = sqlx::QueryBuilder::new(#select_base);
@@ -148,6 +149,7 @@ pub fn generate_select(
             is_order_by: bool
         }
 
+        #[automatically_derived]
         impl<#lifetime> #builder_struct_ident<#lifetime> {
             fn complete_group_by(&mut self) {
                 if self.is_group_by && !self.group_by_completed {

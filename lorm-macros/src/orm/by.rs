@@ -52,6 +52,7 @@ pub fn generate_by(
             #(#trait_tokens)*
         }
 
+        #[automatically_derived]
         impl<'e, E: #executor_type> #trait_ident<'e, E> for #struct_name {
             #(#impl_tokens)*
         }

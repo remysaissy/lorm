@@ -113,7 +113,7 @@ impl ColumnProperties {
         {
             return Err(syn::Error::new(
                 field.span(),
-                "The `is_set` attribute only makes sense on generated primary key fields.",
+                "The `new` attribute only makes sense on primary key, created_at or updated_at fields.",
             ));
         }
         // is_set_expression only makes sense on the primary key field
