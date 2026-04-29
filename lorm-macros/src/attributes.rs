@@ -84,6 +84,7 @@ pub struct ColumnProperties {
 pub struct SqlxColumnAttributes {
     pub skip: Flag,
     pub rename: Option<String>,
+    #[darling(rename = "json")]
     pub is_json: Flag,
 }
 
