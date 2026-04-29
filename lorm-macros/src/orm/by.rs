@@ -1,5 +1,7 @@
 use crate::models::OrmModel;
-use crate::utils::{db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint};
+use crate::utils::{
+    db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint, to_column_type,
+};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_by(
@@ -18,13 +20,25 @@ pub fn generate_by(
 
         let lifetime = quote! {'a};
         let parameter = quote! {value};
-        let field_type_constraints = get_bind_type_where_constraint(&column.ty, database_type, &lifetime).unwrap();
         let (param_type, param_value) = get_bind_param_type_and_usage(&parameter, &column.ty, &lifetime).unwrap();
         let by_fn = format_ident!("by_{}", field_name);
 
         let columns = model.full_column_select();
         let placeholder = db_placeholder(column.base_field, 1).unwrap();
         let sql_ident = format!("SELECT {columns} FROM {table_name} WHERE {column_name} = {placeholder}");
+
+        let field_type_constraints = if column.column_properties.use_json {
+            let base_type = to_column_type(&column.ty).unwrap();
+            quote! { #base_type: serde::Serialize }
+        } else {
+            get_bind_type_where_constraint(&column.ty, database_type, &lifetime).unwrap()
+        };
+
+        let bind_value = if column.column_properties.use_json {
+            quote! { sqlx::types::Json(#param_value) }
+        } else {
+            param_value.clone()
+        };
 
         let signature = quote! {
             async fn #by_fn<#lifetime>(executor: E, #parameter: #param_type) -> lorm::errors::Result<#struct_name> where #field_type_constraints
@@ -37,7 +51,7 @@ pub fn generate_by(
         let impl_code = quote! {
             #signature {
                 let r = sqlx::query_as::<_, #struct_name>(#sql_ident)
-                    .bind(#param_value)
+                    .bind(#bind_value)
                     .fetch_one(executor).await?;
                 Ok(r)
             }
