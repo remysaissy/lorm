@@ -1,5 +1,7 @@
 use crate::models::OrmModel;
-use crate::utils::{db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint};
+use crate::utils::{
+    db_placeholder, get_bind_param_type_and_usage, get_bind_type_where_constraint, to_column_type,
+};
 use quote::{__private::TokenStream, format_ident, quote};
 
 pub fn generate_with(
@@ -18,10 +20,21 @@ pub fn generate_with(
         let column_name = &column.column_name;
 
         let lifetime = quote! {'a};
-
-        let constraints = get_bind_type_where_constraint(&column.ty, database_type, &lifetime).unwrap();
         let param = quote! {value};
         let (param_type, param_value) = get_bind_param_type_and_usage(&param, &column.ty, &lifetime)?;
+
+        let constraints = if column.column_properties.use_json {
+            let base_type = to_column_type(&column.ty).unwrap();
+            quote! { #base_type: serde::Serialize }
+        } else {
+            get_bind_type_where_constraint(&column.ty, database_type, &lifetime).unwrap()
+        };
+
+        let bind_value = if column.column_properties.use_json {
+            quote! { sqlx::types::Json(#param_value) }
+        } else {
+            param_value.clone()
+        };
 
         let with_fn = format_ident!("with_{}",field_name);
         let placeholder = db_placeholder(column.base_field, 1).unwrap();
@@ -37,7 +50,7 @@ pub fn generate_with(
         let impl_code = quote! {
             #signature {
                 let r = sqlx::query_as::<_, Self>(#sql_ident)
-                    .bind(#param_value)
+                    .bind(#bind_value)
                     .fetch_all(executor).await?;
                 Ok(r)
             }
