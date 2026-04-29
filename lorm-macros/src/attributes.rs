@@ -75,6 +75,8 @@ pub struct ColumnProperties {
     ///
     /// Used to determine whether the instance is in the database or not
     pub is_set_expression: Option<Callable>,
+
+    pub use_json: bool,
 }
 
 #[derive(Debug, FromAttributes)]
@@ -82,6 +84,7 @@ pub struct ColumnProperties {
 pub struct SqlxColumnAttributes {
     pub skip: Flag,
     pub rename: Option<String>,
+    pub is_json: Flag,
 }
 
 fn parse_sqlx_attrs(attrs: Vec<Attribute>) -> Result<SqlxColumnAttributes, darling::Error> {
@@ -125,6 +128,12 @@ impl ColumnProperties {
                 "The `is_set` attribute only makes sense on generated primary key fields.",
             ));
         }
+        if value.is_primary_key.is_present() && sqlx.is_json.is_present() {
+            return Err(syn::Error::new(
+                field.span(),
+                "A field annotated with #[sqlx(json)] cannot be the primary key.",
+            ));
+        }
 
         Ok(ColumnProperties {
             skip: sqlx.skip.is_present(),
@@ -135,6 +144,7 @@ impl ColumnProperties {
             updated_at: value.is_updated_at.is_present(),
             new_expression: value.new_expression.unwrap_or_else(default_new_expression),
             is_set_expression: value.is_set_expression,
+            use_json: sqlx.is_json.is_present(),
         })
     }
 
