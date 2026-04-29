@@ -34,6 +34,27 @@ impl<'a> OrmModel<'a> {
             process_struct_field(field, &mut columns)?;
         }
 
+        let created_at_columns = columns
+            .iter()
+            .filter(|c| c.column_properties.created_at)
+            .count();
+        if created_at_columns > 1 {
+            return Err(syn::Error::new(
+                input.ident.span(),
+                "Only one field can hold the #[lorm(created_at)] attribute",
+            ));
+        }
+        let updated_at_columns = columns
+            .iter()
+            .filter(|c| c.column_properties.updated_at)
+            .count();
+        if updated_at_columns > 1 {
+            return Err(syn::Error::new(
+                input.ident.span(),
+                "Only one field can hold the #[lorm(updated_at)] attribute",
+            ));
+        }
+
         let pk_columns = columns
             .iter()
             .filter(|c| c.column_properties.primary_key)
