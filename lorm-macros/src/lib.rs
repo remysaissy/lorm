@@ -15,7 +15,7 @@ mod utils;
 ///  Annotated field is marked as being the primary key and can only be generated at insertion time.
 ///  This field is also automatically considered as a `#[lorm(by)]` field.
 ///  - If `#[lorm(new)]` is specified, it will use its struct method to generate a new pk at insertion time
-///  - If `#[lorm(is_set)]` is specified, it will use its instance method against `self` to check if the pk is set. Otherwise it compares the pk value with its <struct>::default() (assuming the Default trait is set)
+///  - If `#[lorm(is_set)]` is specified, it will invoke the callable as `(callable)(&pk_value)` to check if the pk is set. Otherwise it compares the pk value with `Default::default()`.
 ///  - If `#[lorm(readonly)]` is specified, it will ignore is_set `#[lorm(new)]` and `#[lorm(is_set)]` and let the database handles the field
 ///
 /// `#[lorm(rename="name")]`
@@ -58,10 +58,10 @@ mod utils;
 ///  - The function call is expected to return an instance
 ///  - When not provided, the type::new() method is called
 ///
-/// `#[lorm(is_set="is_nil()")]`
-///  Uses a specific function call to check if the returned value if the default value.
-///  The function call is expected to return bool.
-///  Defaults to class_type::default() which assumes both the Default and PartialEq trait are implemented.
+/// `#[lorm(is_set="Uuid::is_nil")]`
+///  Uses a callable path to check if the field has its default (unset) value.
+///  Invoked as `(callable)(&field_value)` and must return `bool`.
+///  Defaults to comparing with `Default::default()` (requires `Default + PartialEq`).
 ///
 #[proc_macro_derive(ToLOrm,
     attributes(
@@ -71,7 +71,7 @@ mod utils;
         // lorm(skip),
         // lorm(readonly),
         // lorm(new="module::path::class::new_custom()"),
-        // lorm(is_set="is_nil()"),
+        // lorm(is_set="Uuid::is_nil"),
         // lorm(rename="name"),
         // lorm(created_at),
         // lorm(updated_at),
