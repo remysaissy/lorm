@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support `#[sqlx(json)]` attribute on fields. Lorm wraps bind values with `sqlx::types::Json` automatically. The bare `#[sqlx(json)]` form is supported; `#[sqlx(json(nullable))]` is not supported in this release. A field with `#[sqlx(json)]` cannot be the primary key.
+- Support flattened nested structs via `#[sqlx(flatten)]` used together with `#[lorm(flattened(field: Type, field2: Type = "renamed_col"))]`.
 
 ### Fixed
 
