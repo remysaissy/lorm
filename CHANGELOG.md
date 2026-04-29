@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support `#[sqlx(json)]` attribute on fields. Lorm wraps bind values with `sqlx::types::Json` automatically. The bare `#[sqlx(json)]` form is supported; `#[sqlx(json(nullable))]` is not supported in this release. A field with `#[sqlx(json)]` cannot be the primary key.
+
 ### Fixed
 
 - Correct error message for `#[lorm(new = "...")]` attribute: previously said "is_set attribute" instead of "new attribute"
