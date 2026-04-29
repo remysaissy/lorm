@@ -9,7 +9,7 @@ use quote::quote;
 use syn::Expr;
 use syn::Field;
 use syn::spanned::Spanned;
-use syn::{Attribute, DeriveInput, Type};
+use syn::{Attribute, DeriveInput, Ident, Type};
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(lorm), supports(struct_named))]
@@ -29,6 +29,57 @@ impl TableAttributes {
     }
 }
 
+/// Represents one field entry in `#[lorm(flattened(field: Type, field2: Type = "renamed_col"))]`
+#[derive(Debug, Clone)]
+pub(crate) struct FlattenedField {
+    pub(crate) ident: Ident,
+    pub(crate) ty: Type,
+    pub(crate) column_name: String,
+}
+
+impl syn::parse::Parse for FlattenedField {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ident: Ident = input.parse()?;
+        input.parse::<syn::Token![:]>()?;
+        let ty: Type = input.parse()?;
+        let column_name = if input.peek(syn::Token![=]) {
+            input.parse::<syn::Token![=]>()?;
+            let s: syn::LitStr = input.parse()?;
+            s.value()
+        } else {
+            ident.to_string()
+        };
+        Ok(FlattenedField {
+            ident,
+            ty,
+            column_name,
+        })
+    }
+}
+
+/// Parsed form of `#[lorm(flattened(field1: Type1, field2: Type2 = "col_name", ...))]`
+#[derive(Debug, Clone)]
+pub(crate) struct FlattenedFields {
+    pub(crate) fields: Vec<FlattenedField>,
+}
+
+impl darling::FromMeta for FlattenedFields {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        if let syn::Meta::List(list) = item {
+            let fields: syn::punctuated::Punctuated<FlattenedField, syn::Token![,]> = list
+                .parse_args_with(syn::punctuated::Punctuated::parse_terminated)
+                .map_err(|e| darling::Error::custom(e.to_string()))?;
+            Ok(FlattenedFields {
+                fields: fields.into_iter().collect(),
+            })
+        } else {
+            Err(darling::Error::custom(
+                "expected list: #[lorm(flattened(field: Type, field2: Type = \"col_name\"))]",
+            ))
+        }
+    }
+}
+
 #[derive(Debug, FromMeta)]
 struct ColumnPropertyAttrs {
     #[darling(rename = "pk")]
@@ -45,6 +96,9 @@ struct ColumnPropertyAttrs {
     new_expression: Option<Expr>,
     #[darling(rename = "is_set")]
     is_set_expression: Option<Callable>,
+
+    #[darling(rename = "flattened")]
+    flattened_fields: Option<FlattenedFields>,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +140,8 @@ pub struct SqlxColumnAttributes {
     pub rename: Option<String>,
     #[darling(rename = "json")]
     pub is_json: Flag,
+
+    pub flatten: Flag,
 }
 
 fn parse_sqlx_attrs(attrs: Vec<Attribute>) -> Result<SqlxColumnAttributes, darling::Error> {
@@ -99,6 +155,45 @@ pub struct FieldAttributes {
     field_properties: ColumnPropertyAttrs,
     #[darling(with = "parse_sqlx_attrs")]
     attrs: SqlxColumnAttributes,
+}
+
+impl FieldAttributes {
+    pub(crate) fn has_sqlx_flatten(&self) -> bool {
+        self.attrs.flatten.is_present()
+    }
+
+    pub(crate) fn has_lorm_flattened(&self) -> bool {
+        self.field_properties.flattened_fields.is_some()
+    }
+
+    pub(crate) fn is_skip(&self) -> bool {
+        self.attrs.skip.is_present()
+    }
+
+    pub(crate) fn is_primary_key(&self) -> bool {
+        self.field_properties.is_primary_key.is_present()
+    }
+
+    pub(crate) fn is_created_at_field(&self) -> bool {
+        self.field_properties.is_created_at.is_present()
+    }
+
+    pub(crate) fn is_updated_at_field(&self) -> bool {
+        self.field_properties.is_updated_at.is_present()
+    }
+
+    pub(crate) fn flatten_generate_by(&self) -> bool {
+        self.field_properties.generate_by.is_present()
+    }
+
+    pub(crate) fn flatten_readonly(&self) -> bool {
+        self.field_properties.readonly.is_present()
+    }
+
+    /// Consumes self and returns the FlattenedFields. Only call if `has_lorm_flattened()` is true.
+    pub(crate) fn take_flattened_fields(self) -> FlattenedFields {
+        self.field_properties.flattened_fields.unwrap()
+    }
 }
 
 fn default_new_expression() -> Expr {

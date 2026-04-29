@@ -32,6 +32,13 @@ mod models {
     use sqlx::FromRow;
     use uuid::Uuid;
 
+    #[derive(Debug, Default, Clone, sqlx::FromRow)]
+    pub struct Address {
+        pub street: String,
+        #[sqlx(rename = "zip_code")]
+        pub zip: String,
+    }
+
     #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
     pub struct User {
         #[lorm(pk)]
@@ -95,6 +102,82 @@ mod models {
         pub user_id: Uuid,
         #[sqlx(json)]
         pub preferences: serde_json::Value,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    pub struct Customer {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        #[lorm(by)]
+        pub email: String,
+        #[sqlx(flatten)]
+        #[lorm(flattened(street: String, zip: String = "zip_code"))]
+        pub address: Address,
+    }
+
+    #[derive(Debug, Default, Clone, lorm::ToLOrm)]
+    pub struct OptCustomer {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        #[lorm(by)]
+        pub email: String,
+        #[sqlx(flatten)]
+        #[lorm(flattened(street: String, zip: String = "zip_code"))]
+        pub address: Option<Address>,
+    }
+
+    #[cfg(feature = "sqlite")]
+    impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for OptCustomer {
+        fn from_row(row: &'r sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
+            use sqlx::Row;
+
+            let id: Uuid = row.try_get("id")?;
+            let email: String = row.try_get("email")?;
+            let street: Option<String> = row.try_get("street")?;
+            let zip: Option<String> = row.try_get("zip_code")?;
+            let address = match (street, zip) {
+                (None, None) => None,
+                (Some(street), Some(zip)) => Some(Address { street, zip }),
+                _ => {
+                    let err = std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "partial NULL in flattened Option<Address>",
+                    );
+                    return Err(sqlx::Error::Decode(Box::new(err)));
+                }
+            };
+
+            Ok(Self { id, email, address })
+        }
+    }
+
+    #[cfg(feature = "postgres")]
+    impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for OptCustomer {
+        fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+            use sqlx::Row;
+
+            let id: Uuid = row.try_get("id")?;
+            let email: String = row.try_get("email")?;
+            let street: Option<String> = row.try_get("street")?;
+            let zip: Option<String> = row.try_get("zip_code")?;
+            let address = match (street, zip) {
+                (None, None) => None,
+                (Some(street), Some(zip)) => Some(Address { street, zip }),
+                _ => {
+                    let err = std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "partial NULL in flattened Option<Address>",
+                    );
+                    return Err(sqlx::Error::Decode(Box::new(err)));
+                }
+            };
+
+            Ok(Self { id, email, address })
+        }
     }
 }
 
@@ -105,6 +188,13 @@ mod models {
     use sqlx::FromRow;
     use uuid::Uuid;
 
+    #[derive(Debug, Default, Clone, sqlx::FromRow)]
+    pub struct Address {
+        pub street: String,
+        #[sqlx(rename = "zip_code")]
+        pub zip: String,
+    }
+
     #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
     pub struct User {
         #[lorm(pk)]
@@ -168,6 +258,56 @@ mod models {
         pub user_id: Uuid,
         #[sqlx(json)]
         pub preferences: serde_json::Value,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    pub struct Customer {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        #[lorm(by)]
+        pub email: String,
+        #[sqlx(flatten)]
+        #[lorm(flattened(street: String, zip: String = "zip_code"))]
+        pub address: Address,
+    }
+
+    #[derive(Debug, Default, Clone, lorm::ToLOrm)]
+    pub struct OptCustomer {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        #[lorm(by)]
+        pub email: String,
+        #[sqlx(flatten)]
+        #[lorm(flattened(street: String, zip: String = "zip_code"))]
+        pub address: Option<Address>,
+    }
+
+    impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for OptCustomer {
+        fn from_row(row: &'r sqlx::mysql::MySqlRow) -> Result<Self, sqlx::Error> {
+            use sqlx::Row;
+
+            let id: Uuid = row.try_get("id")?;
+            let email: String = row.try_get("email")?;
+            let street: Option<String> = row.try_get("street")?;
+            let zip: Option<String> = row.try_get("zip_code")?;
+            let address = match (street, zip) {
+                (None, None) => None,
+                (Some(street), Some(zip)) => Some(Address { street, zip }),
+                _ => {
+                    let err = std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "partial NULL in flattened Option<Address>",
+                    );
+                    return Err(sqlx::Error::Decode(Box::new(err)));
+                }
+            };
+
+            Ok(Self { id, email, address })
+        }
     }
 }
 
@@ -186,9 +326,14 @@ pub async fn get_pool() -> Result<Pool> {
     Sqlite::create_database(&database_url).await?;
     let pool = Pool::connect(&database_url).await?;
     let migration_path = fs::canonicalize("tests/resources/migrations/sqlite").await?;
+    let mut entries: Vec<_> = Vec::new();
     let mut dir = fs::read_dir(migration_path).await?;
     while let Some(entry) = dir.next_entry().await? {
-        let bytes = fs::read(entry.path()).await?;
+        entries.push(entry.path());
+    }
+    entries.sort();
+    for path in entries {
+        let bytes = fs::read(&path).await?;
         let content = String::from_utf8(bytes)?;
         pool.execute(content.as_str()).await?;
     }
@@ -624,4 +769,47 @@ async fn test_profile_by_user_id_returns_json() {
     let saved = profile.save(&pool).await.unwrap();
     let fetched = Profile::by_user_id(&pool, &saved.user_id).await.unwrap();
     assert_eq!(fetched.preferences["color"], "blue");
+}
+
+#[tokio::test]
+async fn test_customer_save_with_flatten() {
+    let pool = get_pool().await.expect("Failed to create pool");
+    let mut customer = Customer::default();
+    customer.address = Address {
+        street: "123 Main St".to_string(),
+        zip: "90210".to_string(),
+    };
+    customer.email = "test@example.com".to_string();
+    customer.save(&pool).await.unwrap();
+
+    let fetched = Customer::by_email(&pool, &customer.email).await.unwrap();
+    assert_eq!(fetched.address.street, "123 Main St");
+    assert_eq!(fetched.address.zip, "90210");
+}
+
+#[tokio::test]
+async fn test_customer_by_email_returns_flattened() {
+    let pool = get_pool().await.expect("Failed to create pool");
+    let mut c1 = Customer::default();
+    c1.email = "alice@example.com".to_string();
+    c1.address = Address {
+        street: "456 Oak Ave".to_string(),
+        zip: "10001".to_string(),
+    };
+    c1.save(&pool).await.unwrap();
+
+    let result = Customer::by_email(&pool, &c1.email).await.unwrap();
+    assert_eq!(result.address.street, "456 Oak Ave");
+}
+
+#[tokio::test]
+async fn test_opt_customer_with_none_address() {
+    let pool = get_pool().await.expect("Failed to create pool");
+    let mut c = OptCustomer::default();
+    c.email = "none@example.com".to_string();
+    c.address = None;
+    c.save(&pool).await.unwrap();
+
+    let fetched = OptCustomer::by_email(&pool, &c.email).await.unwrap();
+    assert!(fetched.address.is_none());
 }

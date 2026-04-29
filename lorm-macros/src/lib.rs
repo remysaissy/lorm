@@ -66,6 +66,7 @@ mod utils;
 #[proc_macro_derive(ToLOrm,
     attributes(
         lorm,
+        sqlx,
         // lorm(pk),
         // lorm(by),
         // lorm(skip),
