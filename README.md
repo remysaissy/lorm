@@ -121,6 +121,46 @@ Lorm provides several attributes to customize code generation. Attributes can be
 | `#[lorm(is_set="path")]` | Callable path to check if field has a value — invoked as `(path)(&field)`, must return `bool` | `#[lorm(is_set="Uuid::is_nil")]` | Used to determine INSERT vs UPDATE |
 | `#[lorm(rename="name")]` | Renames field to specific column name | `#[lorm(rename="user_email")]` | Uses custom column name |
 | `#[sqlx(json)]` | Serialises the field as JSON when writing and deserialises it when reading. Lorm wraps bind values with `sqlx::types::Json` automatically. Cannot be combined with `#[lorm(pk)]`. | `#[sqlx(json)]`<br>`pub preferences: serde_json::Value` | Field stored as JSON/JSONB/TEXT depending on backend |
+| `#[sqlx(flatten)]` + `#[lorm(flattened(...))]` | Flattens a nested struct field into multiple SQL columns. Requires both attributes. For optional nested structs, use `Option<Nested>`. | `#[sqlx(flatten)]`<br>`#[lorm(flattened(street: String, zip: String = "zip_code"))]`<br>`pub address: Address` | Nested field is expanded into multiple columns |
+
+#### Flattened Nested Structs
+
+Use `#[sqlx(flatten)]` together with `#[lorm(flattened(...))]` to map a nested struct field to multiple SQL columns.
+
+```rust
+#[derive(Debug, Default, Clone, sqlx::FromRow)]
+pub struct Address {
+    pub street: String,
+    #[sqlx(rename = "zip_code")]
+    pub zip: String,
+}
+
+#[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+pub struct Customer {
+    #[lorm(pk, new = "Uuid::new_v4()", is_set = "Uuid::is_nil")]
+    pub id: Uuid,
+    #[lorm(by)]
+    pub email: String,
+    #[sqlx(flatten)]
+    #[lorm(flattened(street: String, zip: String = "zip_code"))]
+    pub address: Address,
+}
+```
+
+To represent nullable flattened columns, use `Option<NestedStruct>`:
+
+```rust
+#[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+pub struct OptCustomer {
+    #[lorm(pk, new = "Uuid::new_v4()", is_set = "Uuid::is_nil")]
+    pub id: Uuid,
+    #[lorm(by)]
+    pub email: String,
+    #[sqlx(flatten)]
+    #[lorm(flattened(street: String, zip: String = "zip_code"))]
+    pub address: Option<Address>,
+}
+```
 
 #### Struct-Level Attributes
 
