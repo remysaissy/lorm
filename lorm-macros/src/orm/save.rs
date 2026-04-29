@@ -201,6 +201,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
             async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>;
         }
 
+        #[automatically_derived]
         impl<'e, #executor_bound> #save_trait_ident<'e, E> for #struct_name
         {
             async fn save(&self, executor: E) -> lorm::errors::Result<#struct_name>
