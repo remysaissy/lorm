@@ -781,6 +781,7 @@ dependencies = [
  "fake",
  "lorm-macros",
  "serde",
+ "serde_json",
  "sqlx",
  "thiserror",
  "tokio",

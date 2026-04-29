@@ -1,12 +1,16 @@
+use crate::attributes::ColumnProperties;
 use crate::attributes::FieldAttributes;
 use crate::attributes::FieldProperties;
 use crate::attributes::TableAttributes;
 use crate::orm::column::Column;
+use crate::utils::is_option_wrapped;
 use darling::FromDeriveInput;
 use darling::FromField;
 use quote::ToTokens;
+use quote::quote;
 use syn::parse;
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{DeriveInput, Field, Ident, Visibility};
 
@@ -122,7 +126,87 @@ impl<'a> OrmModel<'a> {
 }
 
 fn process_struct_field<'a>(field: &'a Field, columns: &mut Vec<Column<'a>>) -> syn::Result<()> {
-    let properties = FieldProperties::from(field, FieldAttributes::from_field(field)?)?;
+    let field_attrs = FieldAttributes::from_field(field)?;
+
+    let has_sqlx_flatten = field_attrs.has_sqlx_flatten();
+    let has_lorm_flattened = field_attrs.has_lorm_flattened();
+
+    if has_sqlx_flatten || has_lorm_flattened {
+        // Both attributes must be present together
+        if has_sqlx_flatten && !has_lorm_flattened {
+            return Err(syn::Error::new(
+                field.span(),
+                "#[sqlx(flatten)] requires a matching #[lorm(flattened(field: Type, ...))] attribute",
+            ));
+        }
+        if !has_sqlx_flatten && has_lorm_flattened {
+            return Err(syn::Error::new(
+                field.span(),
+                "#[lorm(flattened(...))] requires a matching #[sqlx(flatten)] attribute",
+            ));
+        }
+
+        // Reject incompatible parent attributes
+        if field_attrs.is_primary_key() {
+            return Err(syn::Error::new(
+                field.span(),
+                "A flattened field cannot be the primary key.",
+            ));
+        }
+        if field_attrs.is_created_at_field() {
+            return Err(syn::Error::new(
+                field.span(),
+                "A flattened field cannot be #[lorm(created_at)].",
+            ));
+        }
+        if field_attrs.is_updated_at_field() {
+            return Err(syn::Error::new(
+                field.span(),
+                "A flattened field cannot be #[lorm(updated_at)].",
+            ));
+        }
+
+        if field_attrs.is_skip() {
+            return Ok(()); // Parent skipped → skip all nested fields
+        }
+
+        let generate_by = field_attrs.flatten_generate_by();
+        let readonly = field_attrs.flatten_readonly();
+        let flattened_fields = field_attrs.take_flattened_fields();
+        let parent_is_option = is_option_wrapped(&field.ty);
+        for entry in flattened_fields.fields {
+            let ty = if parent_is_option {
+                let inner = entry.ty;
+                syn::parse2(quote! { Option<#inner> })?
+            } else {
+                entry.ty
+            };
+            let col_props = ColumnProperties {
+                skip: false,
+                readonly,
+                primary_key: false,
+                generate_by,
+                created_at: false,
+                updated_at: false,
+                new_expression: syn::parse_str("Default::default()").unwrap(),
+                is_set_expression: None,
+                use_json: false,
+            };
+
+            columns.push(Column {
+                base_field: field,
+                field: entry.ident,
+                ty,
+                is_flattened: true,
+                column_name: entry.column_name,
+                column_properties: col_props,
+            });
+        }
+
+        return Ok(());
+    }
+
+    let properties = FieldProperties::from(field, field_attrs)?;
 
     if properties.column_properties.skip {
         return Ok(());
