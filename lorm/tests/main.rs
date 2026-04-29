@@ -37,7 +37,7 @@ mod models {
         #[lorm(pk)]
         #[lorm(new = "Uuid::new_v4()")]
         // Default is used but a boolean check function can also be used.
-        #[lorm(is_set = "is_nil()")]
+        #[lorm(is_set = "Uuid::is_nil")]
         pub id: Uuid,
 
         #[lorm(by)]
@@ -98,7 +98,7 @@ mod models {
         #[lorm(pk)]
         #[lorm(new = "Uuid::new_v4()")]
         // Default is used but a boolean check function can also be used.
-        #[lorm(is_set = "is_nil()")]
+        #[lorm(is_set = "Uuid::is_nil")]
         pub id: Uuid,
 
         #[lorm(by)]

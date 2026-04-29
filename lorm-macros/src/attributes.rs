@@ -1,5 +1,6 @@
 use darling::FromField;
 use darling::FromMeta;
+use darling::util::Callable;
 use darling::util::Flag;
 use darling::{FromAttributes, FromDeriveInput};
 use heck::ToSnakeCase;
@@ -43,7 +44,7 @@ struct ColumnPropertyAttrs {
     #[darling(rename = "new")]
     new_expression: Option<Expr>,
     #[darling(rename = "is_set")]
-    is_set_expression: Option<Expr>,
+    is_set_expression: Option<Callable>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,11 +69,12 @@ pub struct ColumnProperties {
 
     /// The expression to use to generate a new value for the field. Used when generating a new primary key or the `created_at` and `updated_at` fields.
     pub new_expression: Expr,
-    /// A field or method call that is accessed/executed with the field as the receiver to determine whether the field is set.
+    /// A callable path used to determine whether the field is set (e.g. `Uuid::is_nil`).
+    /// Invoked as `(callable)(&field_value)` and must return `bool`.
     /// If not set, the field's value will be compared with [Default::default].
     ///
     /// Used to determine whether the instance is in the database or not
-    pub is_set_expression: Option<Expr>,
+    pub is_set_expression: Option<Callable>,
 }
 
 #[derive(Debug, FromAttributes)]
@@ -138,8 +140,8 @@ impl ColumnProperties {
 
     pub fn is_set(&self, base: TokenStream, ty: &Type) -> TokenStream {
         match &self.is_set_expression {
-            Some(expr) => quote! {#base.#expr},
-            None => quote! {*#base == #ty::default()},
+            Some(callable) => quote! { (#callable)(#base) },
+            None => quote! { (|val: &#ty| val == &<#ty as Default>::default())(#base) },
         }
     }
 }

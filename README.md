@@ -118,7 +118,7 @@ Lorm provides several attributes to customize code generation. Attributes can be
 | `#[lorm(created_at)]` | Marks field as creation timestamp | `#[lorm(created_at)]`<br>`pub created_at: DateTime` | Auto-set on INSERT |
 | `#[lorm(updated_at)]` | Marks field as update timestamp | `#[lorm(updated_at)]`<br>`pub updated_at: DateTime` | Auto-set on INSERT and UPDATE |
 | `#[lorm(new="expr")]` | Custom expression to generate field value | `#[lorm(new="Uuid::new_v4()")]` | Used in INSERT queries |
-| `#[lorm(is_set="fn()")]` | Custom function to check if field has a value | `#[lorm(is_set="is_nil()")]` | Used to determine INSERT vs UPDATE |
+| `#[lorm(is_set="path")]` | Callable path to check if field has a value — invoked as `(path)(&field)`, must return `bool` | `#[lorm(is_set="Uuid::is_nil")]` | Used to determine INSERT vs UPDATE |
 | `#[lorm(rename="name")]` | Renames field to specific column name | `#[lorm(rename="user_email")]` | Uses custom column name |
 
 #### Struct-Level Attributes
