@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS profiles (
+    id BINARY(16) NOT NULL PRIMARY KEY,
+    user_id BINARY(16) NOT NULL,
+    preferences JSON NOT NULL
+);

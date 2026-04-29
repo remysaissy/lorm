@@ -73,7 +73,12 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         } else if column.column_properties.primary_key {
             primary_key_var.clone()
         } else {
-            column.self_accessor()
+            let accessor = column.self_accessor();
+            if column.column_properties.use_json {
+                quote! { sqlx::types::Json(#accessor) }
+            } else {
+                accessor
+            }
         }
     };
 

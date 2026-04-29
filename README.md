@@ -120,6 +120,7 @@ Lorm provides several attributes to customize code generation. Attributes can be
 | `#[lorm(new="expr")]` | Custom expression to generate field value | `#[lorm(new="Uuid::new_v4()")]` | Used in INSERT queries |
 | `#[lorm(is_set="path")]` | Callable path to check if field has a value — invoked as `(path)(&field)`, must return `bool` | `#[lorm(is_set="Uuid::is_nil")]` | Used to determine INSERT vs UPDATE |
 | `#[lorm(rename="name")]` | Renames field to specific column name | `#[lorm(rename="user_email")]` | Uses custom column name |
+| `#[sqlx(json)]` | Serialises the field as JSON when writing and deserialises it when reading. Lorm wraps bind values with `sqlx::types::Json` automatically. Cannot be combined with `#[lorm(pk)]`. | `#[sqlx(json)]`<br>`pub preferences: serde_json::Value` | Field stored as JSON/JSONB/TEXT depending on backend |
 
 #### Struct-Level Attributes
 
@@ -357,6 +358,22 @@ cargo expand --test main
 ### Does Lorm work with connection pools?
 
 Yes! Lorm works with SQLx connection pools (`&Pool`) on all backends. On SQLite and PostgreSQL, it also works with transactions (`&mut Transaction`). On MySQL, the `save()` method requires a `Copy` executor, so it only works with `&Pool`.
+
+### How do I store JSON data?
+
+Use `#[sqlx(json)]` on a field typed as `serde_json::Value` (or any `serde::Serialize + serde::Deserialize` type). Lorm wraps the bind value with `sqlx::types::Json` on write and SQLx's `FromRow` derive deserialises it on read.
+
+```rust
+#[derive(Debug, Default, FromRow, ToLOrm)]
+struct Profile {
+    #[lorm(pk, new = "Uuid::new_v4()")]
+    pub id: Uuid,
+    #[sqlx(json)]
+    pub preferences: serde_json::Value,
+}
+```
+
+The underlying column type should be `TEXT` for SQLite, `JSONB` for PostgreSQL, and `JSON` for MySQL. A field with `#[sqlx(json)]` cannot be the primary key.
 
 ### How do I handle composite primary keys?
 
