@@ -130,6 +130,28 @@ mod models {
         pub address: Option<Address>,
     }
 
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    #[lorm(pk_type = "manual")]
+    pub struct UserRole {
+        #[lorm(pk)]
+        pub user_id: Uuid,
+        #[lorm(pk)]
+        pub role_id: Uuid,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    #[lorm(
+        rename = "user_roles_named",
+        pk_type = "manual",
+        pk_selector = "named_by_user_role"
+    )]
+    pub struct UserRoleNamed {
+        #[lorm(pk)]
+        pub user_id: Uuid,
+        #[lorm(pk)]
+        pub role_name: String,
+    }
+
     #[cfg(feature = "sqlite")]
     impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for OptCustomer {
         fn from_row(row: &'r sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
@@ -308,6 +330,28 @@ mod models {
 
             Ok(Self { id, email, address })
         }
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    #[lorm(pk_type = "manual")]
+    pub struct UserRole {
+        #[lorm(pk)]
+        pub user_id: Uuid,
+        #[lorm(pk)]
+        pub role_id: Uuid,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    #[lorm(
+        rename = "user_roles_named",
+        pk_type = "manual",
+        pk_selector = "named_by_user_role"
+    )]
+    pub struct UserRoleNamed {
+        #[lorm(pk)]
+        pub user_id: Uuid,
+        #[lorm(pk)]
+        pub role_name: String,
     }
 }
 
@@ -812,4 +856,76 @@ async fn test_opt_customer_with_none_address() {
 
     let fetched = OptCustomer::by_email(&pool, &c.email).await.unwrap();
     assert!(fetched.address.is_none());
+}
+
+#[tokio::test]
+async fn test_user_role_save_inserts() {
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let r = UserRole {
+        user_id: Uuid::new_v4(),
+        role_id: Uuid::new_v4(),
+    };
+    r.save(&pool).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_user_role_by_key_returns_match() {
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let r = UserRole {
+        user_id: Uuid::new_v4(),
+        role_id: Uuid::new_v4(),
+    };
+    r.save(&pool).await.unwrap();
+
+    let fetched = UserRole::by_key(&pool, &r.user_id, &r.role_id)
+        .await
+        .unwrap();
+    assert_eq!(fetched.user_id, r.user_id);
+    assert_eq!(fetched.role_id, r.role_id);
+}
+
+#[tokio::test]
+async fn test_user_role_named_by_user_role() {
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let r = UserRoleNamed {
+        user_id: Uuid::new_v4(),
+        role_name: "admin".to_string(),
+    };
+    r.save(&pool).await.unwrap();
+
+    let fetched = UserRoleNamed::named_by_user_role(&pool, &r.user_id, &r.role_name)
+        .await
+        .unwrap();
+    assert_eq!(fetched.user_id, r.user_id);
+    assert_eq!(fetched.role_name, r.role_name);
+}
+
+#[tokio::test]
+async fn test_user_role_delete_composite() {
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let r = UserRole {
+        user_id: Uuid::new_v4(),
+        role_id: Uuid::new_v4(),
+    };
+    r.save(&pool).await.unwrap();
+    r.delete(&pool).await.unwrap();
+
+    let res = UserRole::by_key(&pool, &r.user_id, &r.role_id).await;
+    assert_eq!(res.is_err(), true);
+}
+
+#[tokio::test]
+async fn test_backcompat_generated_pk_by_id_still_works() {
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let mut u = User::default();
+    u.email = SafeEmail().fake::<String>();
+    let u = u.save(&pool).await.unwrap();
+
+    let fetched = User::by_id(&pool, &u.id).await.unwrap();
+    assert_eq!(fetched.id, u.id);
 }
