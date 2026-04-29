@@ -167,6 +167,8 @@ pub struct OptCustomer {
 | Attribute | Description | Example |
 |-----------|-------------|---------|
 | `#[lorm(rename="name")]` | Sets custom table name | `#[lorm(rename="app_users")]`<br>`struct User` |
+| `#[lorm(pk_type="manual")]` | Enables composite/manual primary key mode. All `#[lorm(pk)]` fields form the composite key. | `#[lorm(pk_type="manual")]`<br>`struct UserRole` |
+| `#[lorm(pk_selector="name")]` | Custom selector method name for composite pk (default: `by_key` for 2+ fields, `by_<field>` for 1 field) | `#[lorm(pk_type="manual", pk_selector="find_by_ids")]` |
 
 #### Naming Conventions
 
@@ -417,7 +419,27 @@ The underlying column type should be `TEXT` for SQLite, `JSONB` for PostgreSQL, 
 
 ### How do I handle composite primary keys?
 
-Lorm currently supports single-field primary keys only. For composite keys, use SQLx directly.
+Use `#[lorm(pk_type = "manual")]` on the struct and mark each pk field with `#[lorm(pk)]`. Lorm generates `save()`, `delete()`, and a composite selector method (`by_key()` by default, or a custom name via `pk_selector`):
+
+```rust
+#[derive(Debug, Default, sqlx::FromRow, lorm::ToLOrm)]
+#[lorm(pk_type = "manual")]
+pub struct UserRole {
+    #[lorm(pk)]
+    pub user_id: Uuid,
+    #[lorm(pk)]
+    pub role_id: Uuid,
+    pub assigned_at: String,
+}
+
+// Usage
+let ur = UserRole { user_id, role_id, assigned_at: "2024-01-01".into() };
+let saved = ur.save(&pool).await?;
+let found = UserRole::by_key(&pool, &saved.user_id, &saved.role_id).await?;
+saved.delete(&pool).await?;
+```
+
+For a custom selector name, use `#[lorm(pk_type = "manual", pk_selector = "find_by_ids")]`.
 
 ### Can I customize the SQL queries Lorm generates?
 

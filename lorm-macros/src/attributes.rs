@@ -11,11 +11,29 @@ use syn::Field;
 use syn::spanned::Spanned;
 use syn::{Attribute, DeriveInput, Ident, Type};
 
+/// Controls whether the primary key is generated (default) or manually managed.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, darling::FromMeta)]
+#[darling(rename_all = "lowercase")]
+pub enum PrimaryKeyType {
+    Generated,
+    Manual,
+}
+
+fn default_pk_type() -> PrimaryKeyType {
+    PrimaryKeyType::Generated
+}
+
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(lorm), supports(struct_named))]
 pub struct TableAttributes {
     #[darling(rename = "rename")]
     table_name_override: Option<String>,
+
+    #[darling(default = "default_pk_type")]
+    pub pk_type: PrimaryKeyType,
+
+    #[darling(rename = "pk_selector")]
+    pub pk_selector: Option<String>,
 }
 
 impl TableAttributes {
@@ -26,6 +44,24 @@ impl TableAttributes {
             let table_case = input.ident.to_string().to_snake_case();
             pluralizer::pluralize(table_case.as_str(), 2, false)
         })
+    }
+
+    /// Returns the method name for the composite pk selector.
+    ///
+    /// - If pk_selector is provided, use it directly.
+    /// - If single-field manual pk: use `by_<field_name>`.
+    /// - If composite pk (2+ fields): use `by_key`.
+    ///
+    /// Caller provides pk_fields to determine the name when no override.
+    pub fn pk_selector_name(&self, pk_fields: &[&str]) -> String {
+        if let Some(ident) = &self.pk_selector {
+            return ident.clone();
+        }
+        if pk_fields.len() == 1 {
+            format!("by_{}", pk_fields[0])
+        } else {
+            "by_key".to_string()
+        }
     }
 }
 

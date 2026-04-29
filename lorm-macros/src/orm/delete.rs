@@ -8,15 +8,20 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
     let struct_visibility = model.struct_visibility;
     let table_name = &model.table_name;
 
-    // Primary key
-    let primary_key = model.primary_key();
-    let pk_value = primary_key.self_accessor();
-    let pk_column = &primary_key.column_name;
-    let pk_placeholder = format!(
-        "{pk_column} = {}",
-        db_placeholder(primary_key.base_field, 1)?
-    );
-    let sql_ident = format!("DELETE FROM {table_name} WHERE {pk_placeholder}");
+    // Primary key(s)
+    let pk_fields = model.primary_key.fields();
+    let mut where_parts = Vec::new();
+    let mut bind_values = Vec::new();
+
+    for (i, pk_col) in pk_fields.iter().enumerate() {
+        let placeholder = db_placeholder(pk_col.base_field, i + 1)?;
+        where_parts.push(format!("{} = {}", pk_col.column_name, placeholder));
+        let accessor = pk_col.self_accessor();
+        bind_values.push(quote! { .bind(#accessor) });
+    }
+
+    let where_clause = where_parts.join(" AND ");
+    let sql_ident = format!("DELETE FROM {table_name} WHERE {where_clause}");
 
     Ok(quote! {
         #struct_visibility trait #trait_ident<'e, E: #executor_type>: Sized {
@@ -27,7 +32,7 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
         impl<'e, E: #executor_type> #trait_ident<'e, E> for #struct_name {
             async fn delete(&self, executor: E) -> lorm::errors::Result<()> {
                 sqlx::query(#sql_ident)
-                .bind(#pk_value)
+                #(#bind_values)*
                 .execute(executor).await?;
                 Ok(())
             }

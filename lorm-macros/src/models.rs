@@ -1,6 +1,7 @@
 use crate::attributes::ColumnProperties;
 use crate::attributes::FieldAttributes;
 use crate::attributes::FieldProperties;
+use crate::attributes::PrimaryKeyType;
 use crate::attributes::TableAttributes;
 use crate::orm::column::Column;
 use crate::utils::is_option_wrapped;
@@ -14,11 +15,43 @@ use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{DeriveInput, Field, Ident, Visibility};
 
+pub(crate) enum PrimaryKey<'a> {
+    /// Single generated pk (current behavior)
+    Generated(Box<Column<'a>>),
+    /// One or more manual pk columns
+    Manual(Vec<Column<'a>>),
+}
+
+impl<'a> PrimaryKey<'a> {
+    pub(crate) fn is_generated(&self) -> bool {
+        matches!(self, PrimaryKey::Generated(_))
+    }
+
+    pub(crate) fn fields(&self) -> &[Column<'a>] {
+        match self {
+            PrimaryKey::Generated(col) => std::slice::from_ref(col.as_ref()),
+            PrimaryKey::Manual(cols) => cols,
+        }
+    }
+
+    /// For Generated pk, returns the single column.
+    /// For Manual pk, returns the first column (should not be used for composite-only logic).
+    pub(crate) fn generated_column(&self) -> &Column<'a> {
+        match self {
+            PrimaryKey::Generated(col) => col.as_ref(),
+            PrimaryKey::Manual(cols) => &cols[0],
+        }
+    }
+}
+
 pub(crate) struct OrmModel<'a> {
     pub(crate) struct_name: &'a Ident,
     pub(crate) struct_visibility: &'a Visibility,
     pub(crate) table_name: String,
     pub(crate) columns: Vec<Column<'a>>,
+
+    pub(crate) primary_key: PrimaryKey<'a>,
+    pub(crate) pk_selector_name: String,
 }
 
 impl<'a> OrmModel<'a> {
@@ -59,29 +92,60 @@ impl<'a> OrmModel<'a> {
             ));
         }
 
-        let pk_columns = columns
+        let mut pk_columns = columns
             .iter()
             .filter(|c| c.column_properties.primary_key)
+            .cloned()
             .collect::<Vec<_>>();
-        if pk_columns.len() != 1 {
-            return Err(syn::Error::new(
-                input.ident.span(),
-                "expected exactly one primary key using #[lorm(pk)] attribute",
-            ));
+
+        match top_level_attributes.pk_type {
+            PrimaryKeyType::Generated => {
+                if pk_columns.len() != 1 {
+                    return Err(syn::Error::new(
+                        input.ident.span(),
+                        "expected exactly one primary key when pk_type is Generated",
+                    ));
+                }
+            }
+            PrimaryKeyType::Manual => {
+                if pk_columns.is_empty() {
+                    return Err(syn::Error::new(
+                        input.ident.span(),
+                        "at least one #[lorm(pk)] field required when pk_type is Manual",
+                    ));
+                }
+            }
         }
+
+        let pk_field_names = pk_columns
+            .iter()
+            .map(|c| c.field.to_string())
+            .collect::<Vec<_>>();
+        let pk_field_names_ref = pk_field_names
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>();
+        let pk_selector_name = top_level_attributes.pk_selector_name(&pk_field_names_ref);
+
+        let primary_key = match top_level_attributes.pk_type {
+            PrimaryKeyType::Generated => PrimaryKey::Generated(Box::new(pk_columns.remove(0))),
+            PrimaryKeyType::Manual => PrimaryKey::Manual(pk_columns),
+        };
 
         Ok(Self {
             struct_name,
             struct_visibility,
             table_name,
             columns,
+            primary_key,
+            pk_selector_name,
         })
     }
 
     pub(crate) fn query_columns(&self) -> impl Iterator<Item = &Column<'a>> {
         self.columns
             .iter()
-            .filter(|c| c.should_generate_query_function())
+            .filter(|c| c.should_generate_query_function(self.primary_key.is_generated()))
     }
 
     pub(crate) fn full_column_select(&self) -> String {
@@ -92,11 +156,8 @@ impl<'a> OrmModel<'a> {
             .join(", ")
     }
 
-    pub(crate) fn primary_key(&self) -> &Column<'a> {
-        self.columns
-            .iter()
-            .find(|c| c.column_properties.primary_key)
-            .unwrap()
+    pub(crate) fn primary_key(&self) -> &PrimaryKey<'a> {
+        &self.primary_key
     }
 
     pub(crate) fn created_at(&self) -> Option<&Column<'a>> {
@@ -114,14 +175,18 @@ impl<'a> OrmModel<'a> {
     }
 
     pub(crate) fn insert_columns(&self) -> impl Iterator<Item = &Column<'a>> {
-        let primary_key = self.primary_key();
-        let pk_column = if primary_key.column_properties.readonly {
-            None
-        } else {
-            Some(primary_key)
+        let pk_columns: Box<dyn Iterator<Item = &Column<'a>>> = match &self.primary_key {
+            PrimaryKey::Generated(col) => {
+                if col.column_properties.readonly {
+                    Box::new(std::iter::empty())
+                } else {
+                    Box::new(std::iter::once(col.as_ref()))
+                }
+            }
+            PrimaryKey::Manual(cols) => Box::new(cols.iter()),
         };
 
-        pk_column.into_iter().chain(self.update_columns())
+        pk_columns.chain(self.update_columns())
     }
 }
 

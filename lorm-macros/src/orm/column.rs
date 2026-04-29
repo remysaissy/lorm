@@ -35,13 +35,16 @@ impl<'a> Column<'a> {
     /// Whether a `by_*`, `with_*` or selector function should be generated for this column.
     ///
     /// Such a selector should be generated if any of the
-    /// `#[lorm(by)]`, `#[lorm(created_at)]` and `#[lorm(updated_at)]` attributes are present
-    /// or if it is the only field making up the primary key.
-    pub(crate) fn should_generate_query_function(&self) -> bool {
+    /// `#[lorm(by)]`, `#[lorm(created_at)]` and `#[lorm(updated_at)]` attributes are present,
+    /// or if it is part of a generated primary key.
+    ///
+    /// For manual primary keys (including composite), we do not auto-generate `by_<field>` methods
+    /// for the pk fields unless they also have explicit `#[lorm(by)]`.
+    pub(crate) fn should_generate_query_function(&self, pk_is_generated: bool) -> bool {
         self.column_properties.generate_by
             || self.column_properties.created_at
             || self.column_properties.updated_at
-            || self.column_properties.primary_key
+            || (self.column_properties.primary_key && pk_is_generated)
     }
 }
 

@@ -13,25 +13,72 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
 
     // Primary key
     let primary_key = model.primary_key();
+    let is_manual = !primary_key.is_generated();
     let primary_key_var = quote! {primary_key};
-    let pk_column = &primary_key.column_name;
-    let pk_value = primary_key.self_accessor();
-    let pk_placeholder = format!(
-        "{} = {}",
-        pk_column,
-        db_placeholder(primary_key.base_field, model.update_columns().count() + 1)?
-    );
-    let pk_is_set = &primary_key
-        .column_properties
-        .is_set(quote! { #pk_value }, &primary_key.ty);
-    let pk_code = if primary_key.column_properties.readonly {
-        quote! {}
+
+    // --- pk_is_set and pk_code ---
+    let (pk_is_set, pk_code): (TokenStream, TokenStream) = if is_manual {
+        (quote! { true }, quote! {})
     } else {
-        let pk_new_method = &primary_key.column_properties.new_expression;
-        quote! {
-            let #primary_key_var = #pk_new_method;
-        }
+        let pk_col = primary_key.generated_column();
+        let pk_val = pk_col.self_accessor();
+        let is_set = pk_col
+            .column_properties
+            .is_set(quote! { #pk_val }, &pk_col.ty);
+        let code = if pk_col.column_properties.readonly {
+            quote! {}
+        } else {
+            let new_method = &pk_col.column_properties.new_expression;
+            quote! { let #primary_key_var = #new_method; }
+        };
+        (is_set, code)
     };
+
+    // --- WHERE clause and binds for UPDATE (appended after SET ...) ---
+    let update_col_count = model.update_columns().count();
+    let pk_fields = primary_key.fields();
+    let pk_update_where: String = pk_fields
+        .iter()
+        .enumerate()
+        .map(|(i, col)| {
+            Ok::<_, syn::Error>(format!(
+                "{} = {}",
+                col.column_name,
+                db_placeholder(col.base_field, update_col_count + i + 1)?
+            ))
+        })
+        .collect::<syn::Result<Vec<_>>>()?
+        .join(" AND ");
+
+    // For UPDATE WHERE: always use self_accessor (existing pk values)
+    let pk_update_bind_accessors: Vec<TokenStream> =
+        pk_fields.iter().map(|col| col.self_accessor()).collect();
+
+    // --- WHERE clause for SELECT by pk (MySQL fetch after INSERT/UPDATE) ---
+    let pk_select_where: String = pk_fields
+        .iter()
+        .enumerate()
+        .map(|(i, col)| {
+            Ok::<_, syn::Error>(format!(
+                "{} = {}",
+                col.column_name,
+                db_placeholder(col.base_field, i + 1)?
+            ))
+        })
+        .collect::<syn::Result<Vec<_>>>()?
+        .join(" AND ");
+
+    // For SELECT after INSERT in MySQL manual pk path: use self_accessor
+    // For generated non-readonly pk: bind primary_key_var (the locally generated value)
+    let pk_select_bind_accessors_insert: Vec<TokenStream> = if is_manual {
+        pk_fields.iter().map(|col| col.self_accessor()).collect()
+    } else {
+        vec![quote! { #primary_key_var }]
+    };
+
+    // For SELECT after UPDATE in MySQL: use self_accessor (existing pk values)
+    let pk_select_bind_accessors_update: Vec<TokenStream> =
+        pk_fields.iter().map(|col| col.self_accessor()).collect();
 
     // Created at
     let created_at_var = quote! {created_at};
@@ -65,12 +112,15 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         }
     };
 
+    // For generated pk: use `primary_key_var` (the locally generated value).
+    // For manual pk: fall through to self_accessor() since pk_code is empty and
+    // there is no local `primary_key` variable.
     let column_value = |column: &Column, use_created_at_var: bool| {
         if column.column_properties.created_at && use_created_at_var {
             created_at_var.clone()
         } else if column.column_properties.updated_at {
             updated_at_var.clone()
-        } else if column.column_properties.primary_key {
+        } else if column.column_properties.primary_key && !is_manual {
             primary_key_var.clone()
         } else {
             let accessor = column.self_accessor();
@@ -107,19 +157,31 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) RETURNING {full_select_columns}"
     );
     let update_sql_returning = format!(
-        "UPDATE {table_name} SET {update_value_placeholders} WHERE {pk_placeholder} RETURNING {full_select_columns}"
+        "UPDATE {table_name} SET {update_value_placeholders} WHERE {pk_update_where} RETURNING {full_select_columns}"
     );
 
     let insert_sql_no_returning =
         format!("INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders})");
     let update_sql_no_returning =
-        format!("UPDATE {table_name} SET {update_value_placeholders} WHERE {pk_placeholder}");
-    let select_by_pk_sql = format!(
-        "SELECT {full_select_columns} from {table_name} WHERE {pk_column} = {}",
-        db_placeholder(primary_key.base_field, 1)?
-    );
+        format!("UPDATE {table_name} SET {update_value_placeholders} WHERE {pk_update_where}");
+    let select_by_pk_sql =
+        format!("SELECT {full_select_columns} from {table_name} WHERE {pk_select_where}");
 
-    let mysql_insert_fetch = if primary_key.column_properties.readonly {
+    let mysql_insert_fetch = if is_manual {
+        // Manual pk: INSERT then SELECT using all pk field self-accessors
+        quote! {
+            sqlx::query(#insert_sql_no_returning)
+            #(
+                .bind(#insert_values)
+            )*
+            .execute(executor).await?;
+            let r = sqlx::query_as::<_, #struct_name>(#select_by_pk_sql)
+            #(
+                .bind(#pk_select_bind_accessors_insert)
+            )*
+            .fetch_one(executor).await?;
+        }
+    } else if primary_key.generated_column().column_properties.readonly {
         quote! {
             let insert_result = sqlx::query(#insert_sql_no_returning)
             #(
@@ -161,11 +223,15 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                         #(
                             .bind(#update_values)
                         )*
-                        .bind(#pk_value)
+                        #(
+                            .bind(#pk_update_bind_accessors)
+                        )*
                         .execute(executor).await?;
                         let r = sqlx::query_as::<_, #struct_name>(#select_by_pk_sql)
-                            .bind(#pk_value)
-                            .fetch_one(executor).await?;
+                        #(
+                            .bind(#pk_select_bind_accessors_update)
+                        )*
+                        .fetch_one(executor).await?;
                         Ok(r)
                     }
                 }
@@ -192,7 +258,9 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
                         #(
                             .bind(#update_values)
                         )*
-                        .bind(#pk_value)
+                        #(
+                            .bind(#pk_update_bind_accessors)
+                        )*
                         .fetch_one(executor).await?;
                         Ok(r)
                     }
