@@ -84,6 +84,18 @@ mod models {
         #[lorm(new = "chrono::Utc::now().fixed_offset()")]
         pub updated_at: chrono::DateTime<FixedOffset>,
     }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, ToLOrm)]
+    pub struct Profile {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        #[lorm(by)]
+        pub user_id: Uuid,
+        #[sqlx(json)]
+        pub preferences: serde_json::Value,
+    }
 }
 
 #[cfg(feature = "mysql")]
@@ -144,6 +156,18 @@ mod models {
         #[lorm(updated_at)]
         #[lorm(new = "chrono::Utc::now()")]
         pub updated_at: chrono::DateTime<Utc>,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, ToLOrm)]
+    pub struct Profile {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        #[lorm(by)]
+        pub user_id: Uuid,
+        #[sqlx(json)]
+        pub preferences: serde_json::Value,
     }
 }
 
@@ -573,4 +597,31 @@ async fn create_alt_users<'e, E: sqlx::MySqlExecutor<'e> + Copy>(
         users.push(u);
     }
     users
+}
+
+#[tokio::test]
+async fn test_profile_save_with_json() {
+    let pool = get_pool().await.expect("Failed to create pool");
+    let profile = Profile {
+        user_id: Uuid::new_v4(),
+        preferences: serde_json::json!({"theme": "dark", "lang": "en"}),
+        ..Default::default()
+    };
+    let saved = profile.save(&pool).await.unwrap();
+    assert_ne!(saved.id, Uuid::nil());
+    assert_eq!(saved.preferences["theme"], "dark");
+}
+
+#[tokio::test]
+async fn test_profile_by_user_id_returns_json() {
+    let pool = get_pool().await.expect("Failed to create pool");
+    let user_id = Uuid::new_v4();
+    let profile = Profile {
+        user_id,
+        preferences: serde_json::json!({"color": "blue"}),
+        ..Default::default()
+    };
+    let saved = profile.save(&pool).await.unwrap();
+    let fetched = Profile::by_user_id(&pool, &saved.user_id).await.unwrap();
+    assert_eq!(fetched.preferences["color"], "blue");
 }
