@@ -12,6 +12,13 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Add `#[automatically_derived]` to all generated `impl` blocks for improved tooling support
+- **BREAKING**: `#[lorm(is_set = ...)]` now expects a callable path (e.g. `Uuid::is_nil`) instead of a method-call expression (e.g. `is_nil()`). The callable is invoked as `(callable)(&value)` and must return `bool`. The default behavior (compare with `Default::default()`) is unchanged when `is_set` is omitted.
+
+  Migration:
+  ```diff
+  - #[lorm(is_set = "is_nil()")]
+  + #[lorm(is_set = "Uuid::is_nil")]
+  ```
 
 ## [0.2.2] - 2025-12-15
 
