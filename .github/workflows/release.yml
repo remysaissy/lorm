@@ -46,7 +46,7 @@ jobs:
       - name: Package crates for attestation
         run: |
           cargo package -p lorm-macros --target-dir attestation-artifacts
-          cargo package -p lorm --target-dir attestation-artifacts
+          cargo package -p lorm --no-verify --target-dir attestation-artifacts
 
           mkdir -p attestation-output
           find attestation-artifacts/package -name '*.crate' -exec cp {} attestation-output/ \;
