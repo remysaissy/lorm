@@ -93,8 +93,10 @@ update_cargo_version() {
     local new_version=$1
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s/^version = \".*\"/version = \"$new_version\"/" Cargo.toml
+        sed -i '' "/^lorm-macros = /s/version = \"[^\"]*\"/version = \"$new_version\"/" lorm/Cargo.toml
     else
         sed -i "s/^version = \".*\"/version = \"$new_version\"/" Cargo.toml
+        sed -i "/^lorm-macros = /s/version = \"[^\"]*\"/version = \"$new_version\"/" lorm/Cargo.toml
     fi
 }
 
@@ -188,7 +190,7 @@ main() {
     print_info "Updated CHANGELOG.md"
 
     print_step "4/7 Creating release commit and tag..."
-    git add Cargo.toml CHANGELOG.md
+    git add Cargo.toml lorm/Cargo.toml CHANGELOG.md
     git commit -m "chore(release): prepare for v$new_version"
     git tag -a "v$new_version" -m "Release v$new_version"
     print_info "Created commit and tag v$new_version"
