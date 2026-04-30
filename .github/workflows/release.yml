@@ -45,8 +45,16 @@ jobs:
 
       - name: Package crates for attestation
         run: |
+          # lorm-macros has no unpublished path deps — package normally
           cargo package -p lorm-macros --target-dir attestation-artifacts
+
+          # lorm depends on lorm-macros which is not yet on crates.io.
+          # Patch crates-io to use the local workspace copy so cargo can resolve
+          # the dependency when generating the packaged manifest, then package
+          # without re-verifying the build (already done in the prior step).
+          printf '\n[patch.crates-io]\nlorm-macros = { path = "lorm-macros" }\n' >> Cargo.toml
           cargo package -p lorm --no-verify --target-dir attestation-artifacts
+          git checkout Cargo.toml
 
           mkdir -p attestation-output
           find attestation-artifacts/package -name '*.crate' -exec cp {} attestation-output/ \;
