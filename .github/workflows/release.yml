@@ -49,12 +49,14 @@ jobs:
           cargo package -p lorm-macros --target-dir attestation-artifacts
 
           # lorm depends on lorm-macros which is not yet on crates.io.
-          # Patch crates-io to use the local workspace copy so cargo can resolve
-          # the dependency when generating the packaged manifest, then package
-          # without re-verifying the build (already done in the prior step).
-          printf '\n[patch.crates-io]\nlorm-macros = { path = "lorm-macros" }\n' >> Cargo.toml
+          # Create a temporary untracked .cargo/config.toml (cargo package ignores
+          # untracked files) that patches crates-io to use the local workspace copy,
+          # so cargo can resolve the dependency when generating the packaged manifest.
+          # Use --no-verify to skip the build step (already done above).
+          mkdir -p .cargo
+          printf '[patch.crates-io]\nlorm-macros = { path = "lorm-macros" }\n' > .cargo/config.toml
           cargo package -p lorm --no-verify --target-dir attestation-artifacts
-          git checkout Cargo.toml
+          rm -rf .cargo
 
           mkdir -p attestation-output
           find attestation-artifacts/package -name '*.crate' -exec cp {} attestation-output/ \;
