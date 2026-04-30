@@ -40,6 +40,20 @@ jobs:
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
 
+      - name: Verify release version has no pre-release suffix
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          TAG="${GITHUB_REF#refs/tags/v}"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "ERROR: Cargo.toml version '$VERSION' contains a pre-release suffix."
+            echo "Run './bump-version.sh --release' to strip it before tagging."
+            exit 1
+          fi
+          if [[ "$VERSION" != "$TAG" ]]; then
+            echo "ERROR: Cargo.toml version '$VERSION' does not match tag '$TAG'."
+            exit 1
+          fi
+
       - name: Build workspace
         run: cargo build --release --workspace
 
