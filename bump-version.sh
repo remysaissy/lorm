@@ -13,7 +13,8 @@ show_help() {
     cat << EOF
 Usage: $0 [OPTION]
 
-Bump the project version and update the CHANGELOG using git-cliff.
+Bump the project version, update the CHANGELOG using git-cliff,
+commit to a new branch, and open a pull request.
 
 Options:
     --revision    Bump the revision/patch version (0.0.X)
@@ -27,12 +28,13 @@ Examples:
     $0 --major       # 0.0.9 -> 1.0.0
 
 Note: This script will:
-  1. Update the version in Cargo.toml (workspace)
+  1. Update the version in Cargo.toml (workspace) and lorm/Cargo.toml
   2. Generate/update CHANGELOG.md using git-cliff
-  3. Stage both files for commit (you need to commit manually)
+  3. Commit, push to a new branch, and open a pull request
 
 Requirements:
   - git-cliff must be installed (cargo install git-cliff)
+  - gh (GitHub CLI, brew install gh)
 
 EOF
 }
@@ -50,11 +52,25 @@ print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Check if git-cliff is installed
+# Check required tools are installed
 check_dependencies() {
-    if ! command -v git-cliff &> /dev/null; then
-        print_error "git-cliff is not installed."
-        echo "Please install it with: cargo install git-cliff"
+    local missing=0
+    for cmd in git-cliff gh; do
+        if ! command -v "$cmd" &> /dev/null; then
+            print_error "$cmd is not installed."
+            missing=1
+        fi
+    done
+    if [ "$missing" -eq 1 ]; then
+        echo "Install with: cargo install git-cliff  /  brew install gh"
+        exit 1
+    fi
+}
+
+# Ensure working directory is clean before branching
+check_clean_workdir() {
+    if [ -n "$(git status --porcelain)" ]; then
+        print_error "Working directory is not clean. Commit or stash your changes first."
         exit 1
     fi
 }
@@ -99,20 +115,20 @@ bump_version() {
     echo "$major.$minor.$patch"
 }
 
-# Update version in Cargo.toml
+# Update version in all Cargo.toml files
 update_cargo_version() {
     local new_version=$1
-    local cargo_file="Cargo.toml"
 
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        sed -i '' "s/^version = \".*\"/version = \"$new_version\"/" "$cargo_file"
+        sed -i '' "s/^version = \".*\"/version = \"$new_version\"/" Cargo.toml
+        sed -i '' "/^lorm-macros = /s/version = \"[^\"]*\"/version = \"$new_version\"/" lorm/Cargo.toml
     else
-        # Linux
-        sed -i "s/^version = \".*\"/version = \"$new_version\"/" "$cargo_file"
+        sed -i "s/^version = \".*\"/version = \"$new_version\"/" Cargo.toml
+        sed -i "/^lorm-macros = /s/version = \"[^\"]*\"/version = \"$new_version\"/" lorm/Cargo.toml
     fi
 
-    print_info "Updated $cargo_file to version $new_version"
+    print_info "Updated Cargo.toml to version $new_version"
+    print_info "Updated lorm/Cargo.toml lorm-macros dependency to $new_version"
 }
 
 # Generate changelog using git-cliff
@@ -165,6 +181,9 @@ main() {
     # Check dependencies
     check_dependencies
 
+    # Ensure workdir is clean before branching
+    check_clean_workdir
+
     # Get current version
     current_version=$(get_current_version)
     print_info "Current version: $current_version"
@@ -181,24 +200,36 @@ main() {
         exit 0
     fi
 
-    # Update Cargo.toml
+    # Create and switch to release branch
+    branch="chore/release-v${new_version}"
+    print_info "Creating branch $branch..."
+    git checkout -b "$branch"
+
+    # Update Cargo.toml files
     update_cargo_version "$new_version"
 
     # Update CHANGELOG.md
     update_changelog "$new_version"
 
-    # Stage files
-    print_info "Staging updated files..."
-    git add Cargo.toml CHANGELOG.md
+    # Commit
+    print_info "Staging and committing..."
+    git add Cargo.toml lorm/Cargo.toml CHANGELOG.md
+    git commit -m "chore(release): prepare for v$new_version"
+
+    # Push
+    print_info "Pushing branch $branch..."
+    git push -u origin "$branch"
+
+    # Create PR
+    print_info "Opening pull request..."
+    gh pr create \
+        --title "chore(release): prepare for v${new_version}" \
+        --body "Bump version to \`v${new_version}\` and update CHANGELOG." \
+        --base main \
+        --head "$branch"
 
     print_info ""
-    print_info "Version bump complete!"
-    print_info ""
-    print_info "Next steps:"
-    print_info "  1. Review the changes: git diff --cached"
-    print_info "  2. Commit the changes: git commit -m 'chore(release): prepare for v$new_version'"
-    print_info "  3. Create a git tag: git tag -a v$new_version -m 'Release v$new_version'"
-    print_info "  4. Push changes: git push && git push --tags"
+    print_info "Version bump complete! PR opened for v${new_version}."
 }
 
 main "$@"
