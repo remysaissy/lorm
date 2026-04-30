@@ -36,6 +36,7 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
 
     // --- WHERE clause and binds for UPDATE (appended after SET ...) ---
     let update_col_count = model.update_columns().count();
+    let is_full_key = update_col_count == 0;
     let pk_fields = primary_key.fields();
     let pk_update_where: String = pk_fields
         .iter()
@@ -206,7 +207,109 @@ pub fn generate_save(executor_type: &TokenStream, model: &OrmModel) -> syn::Resu
         }
     };
 
-    let (executor_bound, save_body) = if cfg!(feature = "mysql") {
+    let pk_col_names: Vec<&str> = pk_fields.iter().map(|c| c.column_name.as_str()).collect();
+    let pk_cols_list = pk_col_names.join(", ");
+
+    let excluded_updates: String = model
+        .update_columns()
+        .map(|col| format!("{0} = EXCLUDED.{0}", col.column_name))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let mysql_updates: String = model
+        .update_columns()
+        .map(|col| format!("{0} = VALUES({0})", col.column_name))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let (executor_bound, save_body) = if is_manual {
+        if cfg!(feature = "mysql") {
+            let (upsert_sql, select_sql) = if is_full_key {
+                (
+                    format!(
+                        "INSERT IGNORE INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders})"
+                    ),
+                    format!(
+                        "SELECT {full_select_columns} from {table_name} WHERE {pk_select_where}"
+                    ),
+                )
+            } else {
+                (
+                    format!(
+                        "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) ON DUPLICATE KEY UPDATE {mysql_updates}"
+                    ),
+                    format!(
+                        "SELECT {full_select_columns} from {table_name} WHERE {pk_select_where}"
+                    ),
+                )
+            };
+
+            let mysql_upsert_fetch = quote! {
+                sqlx::query(#upsert_sql)
+                #(
+                    .bind(#insert_values)
+                )*
+                .execute(executor).await?;
+                let r = sqlx::query_as::<_, #struct_name>(#select_sql)
+                #(
+                    .bind(#pk_select_bind_accessors_insert)
+                )*
+                .fetch_one(executor).await?;
+            };
+
+            (
+                quote! { E: #executor_type + Copy },
+                quote! {
+                    #updated_at_code
+                    #mysql_upsert_fetch
+                    Ok(r)
+                },
+            )
+        } else if is_full_key {
+            let upsert_sql_do_nothing = format!(
+                "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) ON CONFLICT ({pk_cols_list}) DO NOTHING RETURNING {full_select_columns}"
+            );
+            let select_by_pk_sql_val =
+                format!("SELECT {full_select_columns} from {table_name} WHERE {pk_select_where}");
+            (
+                quote! { E: #executor_type + Copy },
+                quote! {
+                    #updated_at_code
+                    let r_opt = sqlx::query_as::<_, #struct_name>(#upsert_sql_do_nothing)
+                    #(
+                        .bind(#insert_values)
+                    )*
+                    .fetch_optional(executor).await?;
+                    let r = if let Some(row) = r_opt {
+                        row
+                    } else {
+                        sqlx::query_as::<_, #struct_name>(#select_by_pk_sql_val)
+                        #(
+                            .bind(#pk_select_bind_accessors_insert)
+                        )*
+                        .fetch_one(executor).await?
+                    };
+                    Ok(r)
+                },
+            )
+        } else {
+            let upsert_sql_do_update = format!(
+                "INSERT INTO {table_name} ({insert_columns}) VALUES ({insert_value_placeholders}) ON CONFLICT ({pk_cols_list}) DO UPDATE SET {excluded_updates} RETURNING {full_select_columns}"
+            );
+            (
+                quote! { E: #executor_type },
+                quote! {
+                    #updated_at_code
+                    let r = sqlx::query_as::<_, #struct_name>(#upsert_sql_do_update)
+                    #(
+                        .bind(#insert_values)
+                    )*
+                    .fetch_one(executor).await?;
+                    Ok(r)
+                },
+            )
+        }
+    } else if cfg!(feature = "mysql") {
         (
             quote! { E: #executor_type + Copy },
             quote! {

@@ -441,6 +441,11 @@ saved.delete(&pool).await?;
 
 For a custom selector name, use `#[lorm(pk_type = "manual", pk_selector = "find_by_ids")]`.
 
+When `save()` is called on a `pk_type = "manual"` model, it performs an **upsert** rather than a conditional INSERT/UPDATE:
+- **PostgreSQL / SQLite**: `INSERT ... ON CONFLICT (pk_cols) DO UPDATE SET non_pk = EXCLUDED.non_pk ... RETURNING *`
+- **MySQL**: `INSERT ... ON DUPLICATE KEY UPDATE non_pk = VALUES(non_pk), ...` followed by `SELECT`
+- **Full-key models** (all columns are primary key): uses `ON CONFLICT DO NOTHING` / `INSERT IGNORE` with a fallback SELECT to return the existing row.
+
 ### Can I customize the SQL queries Lorm generates?
 
 No. Lorm generates standard CRUD operations. For custom queries, use SQLx alongside Lorm.

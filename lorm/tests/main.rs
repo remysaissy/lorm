@@ -134,9 +134,10 @@ mod models {
     #[lorm(pk_type = "manual")]
     pub struct UserRole {
         #[lorm(pk)]
-        pub user_id: Uuid,
+        pub user_id: String,
         #[lorm(pk)]
-        pub role_id: Uuid,
+        pub role_id: String,
+        pub assigned_at: String,
     }
 
     #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
@@ -150,6 +151,13 @@ mod models {
         pub user_id: Uuid,
         #[lorm(pk)]
         pub role_name: String,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    #[lorm(pk_type = "manual")]
+    pub struct Tag {
+        #[lorm(pk)]
+        pub name: String,
     }
 
     #[cfg(feature = "sqlite")]
@@ -336,9 +344,10 @@ mod models {
     #[lorm(pk_type = "manual")]
     pub struct UserRole {
         #[lorm(pk)]
-        pub user_id: Uuid,
+        pub user_id: String,
         #[lorm(pk)]
-        pub role_id: Uuid,
+        pub role_id: String,
+        pub assigned_at: String,
     }
 
     #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
@@ -352,6 +361,13 @@ mod models {
         pub user_id: Uuid,
         #[lorm(pk)]
         pub role_name: String,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    #[lorm(pk_type = "manual")]
+    pub struct Tag {
+        #[lorm(pk)]
+        pub name: String,
     }
 }
 
@@ -863,8 +879,9 @@ async fn test_user_role_save_inserts() {
     let pool = get_pool().await.expect("Failed to create pool");
 
     let r = UserRole {
-        user_id: Uuid::new_v4(),
-        role_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4().to_string(),
+        role_id: Uuid::new_v4().to_string(),
+        ..Default::default()
     };
     r.save(&pool).await.unwrap();
 }
@@ -874,8 +891,9 @@ async fn test_user_role_by_key_returns_match() {
     let pool = get_pool().await.expect("Failed to create pool");
 
     let r = UserRole {
-        user_id: Uuid::new_v4(),
-        role_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4().to_string(),
+        role_id: Uuid::new_v4().to_string(),
+        ..Default::default()
     };
     r.save(&pool).await.unwrap();
 
@@ -908,14 +926,189 @@ async fn test_user_role_delete_composite() {
     let pool = get_pool().await.expect("Failed to create pool");
 
     let r = UserRole {
-        user_id: Uuid::new_v4(),
-        role_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4().to_string(),
+        role_id: Uuid::new_v4().to_string(),
+        ..Default::default()
     };
     r.save(&pool).await.unwrap();
     r.delete(&pool).await.unwrap();
 
     let res = UserRole::by_key(&pool, &r.user_id, &r.role_id).await;
     assert_eq!(res.is_err(), true);
+}
+
+#[cfg(any(feature = "sqlite", feature = "postgres"))]
+#[tokio::test]
+async fn test_user_role_save_updates() {
+    use models::*;
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let ur = UserRole {
+        user_id: "user_upd".to_string(),
+        role_id: "editor".to_string(),
+        assigned_at: "2024-01-01".to_string(),
+    };
+    let saved = ur.save(&pool).await.unwrap();
+    assert_eq!(saved.assigned_at, "2024-01-01");
+
+    let ur2 = UserRole {
+        user_id: "user_upd".to_string(),
+        role_id: "editor".to_string(),
+        assigned_at: "2024-06-15".to_string(),
+    };
+    let upserted = ur2.save(&pool).await.unwrap();
+    assert_eq!(upserted.assigned_at, "2024-06-15");
+
+    let count_result = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM user_roles WHERE user_id = 'user_upd' AND role_id = 'editor'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count_result, 1);
+
+    upserted.delete(&pool).await.unwrap();
+}
+
+#[cfg(any(feature = "sqlite", feature = "postgres"))]
+#[tokio::test]
+async fn test_user_role_save_idempotent() {
+    use models::*;
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let ur = UserRole {
+        user_id: "user_idem".to_string(),
+        role_id: "viewer".to_string(),
+        assigned_at: "2024-03-01".to_string(),
+    };
+    let saved1 = ur.save(&pool).await.unwrap();
+    let saved2 = ur.save(&pool).await.unwrap();
+    assert_eq!(saved1.assigned_at, saved2.assigned_at);
+
+    let count_result = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM user_roles WHERE user_id = 'user_idem' AND role_id = 'viewer'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count_result, 1);
+
+    saved2.delete(&pool).await.unwrap();
+}
+
+#[cfg(any(feature = "sqlite", feature = "postgres"))]
+#[tokio::test]
+async fn test_tag_full_key_upsert_idempotent() {
+    use models::*;
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let tag = Tag {
+        name: "rust".to_string(),
+    };
+    let saved1 = tag.save(&pool).await.unwrap();
+    assert_eq!(saved1.name, "rust");
+
+    let saved2 = tag.save(&pool).await.unwrap();
+    assert_eq!(saved2.name, "rust");
+
+    let count_result =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM tags WHERE name = 'rust'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(count_result, 1);
+
+    sqlx::query("DELETE FROM tags WHERE name = 'rust'")
+        .execute(&pool)
+        .await
+        .unwrap();
+}
+
+#[cfg(feature = "mysql")]
+#[tokio::test]
+async fn test_user_role_save_updates_mysql() {
+    use models::*;
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let ur = UserRole {
+        user_id: "user_upd".to_string(),
+        role_id: "editor".to_string(),
+        assigned_at: "2024-01-01".to_string(),
+    };
+    let saved = ur.save(&pool).await.unwrap();
+    assert_eq!(saved.assigned_at, "2024-01-01");
+
+    let ur2 = UserRole {
+        user_id: "user_upd".to_string(),
+        role_id: "editor".to_string(),
+        assigned_at: "2024-06-15".to_string(),
+    };
+    let upserted = ur2.save(&pool).await.unwrap();
+    assert_eq!(upserted.assigned_at, "2024-06-15");
+
+    let count_result = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM user_roles WHERE user_id = 'user_upd' AND role_id = 'editor'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count_result, 1);
+
+    upserted.delete(&pool).await.unwrap();
+}
+
+#[cfg(feature = "mysql")]
+#[tokio::test]
+async fn test_user_role_save_idempotent_mysql() {
+    use models::*;
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let ur = UserRole {
+        user_id: "user_idem".to_string(),
+        role_id: "viewer".to_string(),
+        assigned_at: "2024-03-01".to_string(),
+    };
+    let saved1 = ur.save(&pool).await.unwrap();
+    let saved2 = ur.save(&pool).await.unwrap();
+    assert_eq!(saved1.assigned_at, saved2.assigned_at);
+
+    let count_result = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM user_roles WHERE user_id = 'user_idem' AND role_id = 'viewer'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count_result, 1);
+
+    saved2.delete(&pool).await.unwrap();
+}
+
+#[cfg(feature = "mysql")]
+#[tokio::test]
+async fn test_tag_full_key_upsert_idempotent_mysql() {
+    use models::*;
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let tag = Tag {
+        name: "rust".to_string(),
+    };
+    let saved1 = tag.save(&pool).await.unwrap();
+    assert_eq!(saved1.name, "rust");
+
+    let saved2 = tag.save(&pool).await.unwrap();
+    assert_eq!(saved2.name, "rust");
+
+    let count_result =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM tags WHERE name = 'rust'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(count_result, 1);
+
+    sqlx::query("DELETE FROM tags WHERE name = 'rust'")
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
