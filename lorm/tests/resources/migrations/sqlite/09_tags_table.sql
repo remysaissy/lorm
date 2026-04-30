@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS tags (
+    name TEXT NOT NULL,
+    PRIMARY KEY (name)
+);

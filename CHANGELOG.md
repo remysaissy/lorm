@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `save()` now performs upsert (`INSERT ... ON CONFLICT DO UPDATE` / `ON DUPLICATE KEY UPDATE`) for `pk_type = "manual"` models. Full-key models (all columns are primary key) use `DO NOTHING` / `INSERT IGNORE` with a fallback `SELECT` to return the existing row.
 - Support composite primary keys via `#[lorm(pk_type = "manual")]` on the struct. Mark each pk field with `#[lorm(pk)]`. A `by_key()` selector method is generated automatically (or a custom name via `#[lorm(pk_selector = "my_fn")]`).
 - Support `#[sqlx(json)]` attribute on fields. Lorm wraps bind values with `sqlx::types::Json` automatically. The bare `#[sqlx(json)]` form is supported; `#[sqlx(json(nullable))]` is not supported in this release. A field with `#[sqlx(json)]` cannot be the primary key.
 - Support flattened nested structs via `#[sqlx(flatten)]` used together with `#[lorm(flattened(field: Type, field2: Type = "renamed_col"))]`.
