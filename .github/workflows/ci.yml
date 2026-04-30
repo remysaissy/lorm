@@ -118,3 +118,5 @@ jobs:
         run: cargo run --example query_builder -p lorm
       - name: Run transactions example
         run: cargo run --example transactions -p lorm
+      - name: Run composite_pk example
+        run: cargo run --example composite_pk -p lorm
