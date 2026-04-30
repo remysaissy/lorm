@@ -22,7 +22,7 @@ postgres = ["lorm-macros/postgres", "sqlx/postgres"]
 mysql = ["lorm-macros/mysql", "sqlx/mysql"]
 
 [dependencies]
-lorm-macros = { path = "../lorm-macros", version = "0.2.2", default-features = false }
+lorm-macros = { path = "../lorm-macros", version = "0.3.0", default-features = false }
 sqlx = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["std", "derive"] }
 thiserror = { workspace = true, features = ["std"] }
@@ -47,6 +47,10 @@ path = "../examples/query_builder.rs"
 [[example]]
 name = "transactions"
 path = "../examples/transactions.rs"
+
+[[example]]
+name = "composite_pk"
+path = "../examples/composite_pk.rs"
 
 [[example]]
 name = "test"
