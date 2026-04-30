@@ -330,7 +330,6 @@ Complete, runnable examples are available in the [`examples/`](examples/) direct
 - **[basic_crud.rs](examples/basic_crud.rs)** - Create, read, update, and delete operations
 - **[query_builder.rs](examples/query_builder.rs)** - Advanced querying with filtering, ordering, and pagination
 - **[transactions.rs](examples/transactions.rs)** - Transaction handling and atomic operations
-- **[composite_pk.rs](examples/composite_pk.rs)** - Composite primary keys and upsert behavior with `pk_type = "manual"`
 
 Run an example with:
 ```bash

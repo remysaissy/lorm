@@ -50,16 +50,6 @@ Illustrates transaction handling:
 cargo run --example transactions -p lorm
 ```
 
-### composite_pk.rs
-Demonstrates composite primary keys:
-- Defining composite primary keys with `#[lorm(pk_type = "manual")]`
-- Upsert behavior: `save()` performs `INSERT ... ON CONFLICT DO UPDATE` for composite pk models
-- Full-key models (all columns are pk) use `DO NOTHING` semantics with a fallback SELECT
-
-```bash
-cargo run --example composite_pk -p lorm
-```
-
 ## Requirements
 
 All examples use an in-memory SQLite database for simplicity and require no additional setup. They will:
@@ -75,7 +65,6 @@ If you're new to Lorm, we recommend running the examples in this order:
 1. **basic_crud.rs** - Start here to understand fundamental operations
 2. **query_builder.rs** - Learn advanced querying capabilities
 3. **transactions.rs** - Understand transaction handling
-4. **composite_pk.rs** - Learn composite primary keys and upsert behavior
 
 ## Adapting Examples
 
