@@ -13,7 +13,8 @@ show_help() {
 Usage: ./release.sh [OPTION]
 
 Perform a full release: bump version, update changelog, commit, tag, push,
-publish to crates.io, and create a GitHub release.
+and create a GitHub release. Publishing to crates.io is handled automatically
+by the release workflow via Trusted Publishing.
 
 Options:
     --revision    Bump the patch version    (0.0.X)
@@ -26,7 +27,6 @@ Requirements:
     - git-cliff   (cargo install git-cliff)
     - gh           (GitHub CLI, brew install gh)
     - cargo        (Rust toolchain)
-    - CARGO_REGISTRY_TOKEN env var or cargo login (for crates.io publishing)
 
 EOF
 }
@@ -110,22 +110,6 @@ run_tests() {
     cargo test --workspace
 }
 
-publish_crate() {
-    local crate_name=$1
-    local dry_run=$2
-
-    print_step "Publishing $crate_name to crates.io..."
-
-    if [ "$dry_run" = "true" ]; then
-        cargo publish --dry-run -p "$crate_name"
-    else
-        cargo publish -p "$crate_name"
-
-        print_info "Waiting for crates.io to index $crate_name..."
-        sleep 30
-    fi
-}
-
 main() {
     if [ $# -eq 0 ]; then
         show_help
@@ -177,19 +161,19 @@ main() {
 
     echo ""
 
-    print_step "1/7 Running tests..."
+    print_step "1/6 Running tests..."
     run_tests
     echo ""
 
-    print_step "2/7 Bumping version to $new_version..."
+    print_step "2/6 Bumping version to $new_version..."
     update_cargo_version "$new_version"
     print_info "Updated Cargo.toml"
 
-    print_step "3/7 Generating changelog..."
+    print_step "3/6 Generating changelog..."
     generate_changelog "$new_version"
     print_info "Updated CHANGELOG.md"
 
-    print_step "4/7 Creating release commit and tag..."
+    print_step "4/6 Creating release commit and tag..."
     git add Cargo.toml lorm/Cargo.toml CHANGELOG.md
     git commit -m "chore(release): prepare for v$new_version"
     git tag -a "v$new_version" -m "Release v$new_version"
@@ -197,31 +181,21 @@ main() {
 
     if [ "$dry_run" = "true" ]; then
         echo ""
-        print_step "5/7 [DRY RUN] Skipping push"
-        print_step "6/7 [DRY RUN] Validating crate packages..."
-        publish_crate "lorm-macros" "true"
-        publish_crate "lorm" "true"
-        print_step "7/7 [DRY RUN] Skipping GitHub release"
+        print_step "5/6 [DRY RUN] Skipping push"
+        print_step "6/6 [DRY RUN] Skipping GitHub release"
         echo ""
         print_info "Dry run complete. To finalize:"
         print_info "  git push && git push --tags"
-        print_info "  cargo publish -p lorm-macros && sleep 30 && cargo publish -p lorm"
         print_info "  gh release create v$new_version --generate-notes"
         return
     fi
 
-    print_step "5/7 Pushing to remote..."
+    print_step "5/6 Pushing to remote..."
     git push
     git push --tags
     print_info "Pushed commit and tag"
 
-    # lorm-macros must be published before lorm (dependency ordering)
-    print_step "6/7 Publishing crates..."
-    publish_crate "lorm-macros" "false"
-    publish_crate "lorm" "false"
-    print_info "Both crates published"
-
-    print_step "7/7 Creating GitHub release..."
+    print_step "6/6 Creating GitHub release..."
     gh release create "v$new_version" \
         --title "v$new_version" \
         --notes-file CHANGELOG.md
@@ -232,8 +206,8 @@ main() {
     print_info ""
     print_info "The release workflow will now run on the pushed tag to:"
     print_info "  - Verify the build"
-    print_info "  - Generate build attestations (gh attestation)"
-    print_info "  - Link the release to the provenance chain"
+    print_info "  - Generate build attestations"
+    print_info "  - Publish to crates.io via Trusted Publishing"
 }
 
 main "$@"
