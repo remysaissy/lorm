@@ -83,3 +83,46 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: 'attestation-output/lorm-*.crate'
+
+  publish:
+    name: Publish to crates.io
+    needs: attest
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://crates.io/crates/lorm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Authenticate with crates.io via Trusted Publishing
+        uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
+      # lorm-macros must be published before lorm (dependency ordering)
+      - name: Publish lorm-macros
+        run: cargo publish -p lorm-macros --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+      - name: Wait for crates.io to index lorm-macros
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Waiting for lorm-macros $VERSION to appear on crates.io..."
+          for i in $(seq 1 30); do
+            if cargo search lorm-macros 2>/dev/null | grep -q "lorm-macros = \"$VERSION\""; then
+              echo "lorm-macros $VERSION is now indexed."
+              exit 0
+            fi
+            echo "Attempt $i/30 — not yet indexed, waiting 10s..."
+            sleep 10
+          done
+          echo "ERROR: lorm-macros $VERSION was not indexed after 5 minutes."
+          exit 1
+
+      - name: Publish lorm
+        run: cargo publish -p lorm --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
