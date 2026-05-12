@@ -12,15 +12,16 @@ show_help() {
     cat << 'EOF'
 Usage: ./release.sh [OPTION]
 
-Perform a full release: bump version, update changelog, commit, tag, push,
-and create a GitHub release. Publishing to crates.io is handled automatically
-by the release workflow via Trusted Publishing.
+Perform a full release: bump version, update changelog, commit, and open a
+pull request. Once the PR is merged, the tag-release workflow automatically
+creates the git tag and GitHub release. Publishing to crates.io is then
+handled by the release workflow via Trusted Publishing.
 
 Options:
     --revision    Bump the patch version    (0.0.X)
     --minor       Bump the minor version    (0.X.0)
     --major       Bump the major version    (X.0.0)
-    --dry-run     Run all steps except push, publish, and GitHub release
+    --dry-run     Run all steps except push and PR creation
     --help        Display this help message
 
 Requirements:
@@ -150,7 +151,7 @@ main() {
     print_info "Current version: $current_version"
     print_info "New version:     $new_version"
     if [ "$dry_run" = "true" ]; then
-        print_warning "DRY RUN — no push, publish, or GitHub release will be performed"
+        print_warning "DRY RUN — no push or PR creation will be performed"
     fi
     echo ""
 
@@ -175,41 +176,51 @@ main() {
     generate_changelog "$new_version"
     print_info "Updated CHANGELOG.md"
 
-    print_step "4/6 Creating release commit and tag..."
+    local release_branch="release/v$new_version"
+
+    print_step "4/6 Creating release branch and commit..."
+    git checkout -b "$release_branch"
     git add Cargo.toml lorm/Cargo.toml CHANGELOG.md
     git commit -m "chore(release): prepare for v$new_version"
-    git tag -a "v$new_version" -m "Release v$new_version"
-    print_info "Created commit and tag v$new_version"
+    print_info "Created commit on branch $release_branch"
 
     if [ "$dry_run" = "true" ]; then
         echo ""
         print_step "5/6 [DRY RUN] Skipping push"
-        print_step "6/6 [DRY RUN] Skipping GitHub release"
+        print_step "6/6 [DRY RUN] Skipping PR creation"
         echo ""
         print_info "Dry run complete. To finalize:"
-        print_info "  git push && git push --tags"
-        print_info "  gh release create v$new_version --generate-notes"
+        print_info "  git push -u origin $release_branch"
+        print_info "  gh pr create --base main --head $release_branch --title 'Release v$new_version' --label release"
         return
     fi
 
-    print_step "5/6 Pushing to remote..."
-    git push
-    git push --tags
-    print_info "Pushed commit and tag"
+    print_step "5/6 Pushing release branch..."
+    git push -u origin "$release_branch"
+    print_info "Pushed branch $release_branch"
 
-    print_step "6/6 Creating GitHub release..."
-    gh release create "v$new_version" \
-        --title "v$new_version" \
-        --notes-file CHANGELOG.md
-    print_info "GitHub release created"
+    print_step "6/6 Opening pull request..."
+    gh pr create \
+        --base main \
+        --head "$release_branch" \
+        --title "Release v$new_version" \
+        --label "release" \
+        --body "$(cat CHANGELOG.md)"
+    print_info "Pull request created"
 
     echo ""
-    print_info "Release v$new_version complete!"
+    print_info "Release v$new_version prepared!"
     print_info ""
-    print_info "The release workflow will now run on the pushed tag to:"
-    print_info "  - Verify the build"
-    print_info "  - Generate build attestations"
-    print_info "  - Publish to crates.io via Trusted Publishing"
+    print_info "Next steps:"
+    print_info "  1. Wait for CI checks to pass on the PR"
+    print_info "  2. Squash-merge the PR into main"
+    print_info "  3. The tag-release workflow will automatically:"
+    print_info "     - Create the v$new_version tag"
+    print_info "     - Create the GitHub release with changelog"
+    print_info "  4. The release workflow will then:"
+    print_info "     - Verify the build"
+    print_info "     - Generate build attestations"
+    print_info "     - Publish to crates.io via Trusted Publishing"
 }
 
 main "$@"

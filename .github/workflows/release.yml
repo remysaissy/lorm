@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.4.0)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: rustup toolchain install
       - run: rustup component add rustfmt clippy
@@ -36,6 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
@@ -43,7 +53,9 @@ jobs:
       - name: Verify release version has no pre-release suffix
         run: |
           VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-          TAG="${GITHUB_REF#refs/tags/v}"
+          RAW_TAG="${{ inputs.tag || github.ref }}"
+          TAG="${RAW_TAG#refs/tags/v}"
+          TAG="${TAG#v}"
           if [[ "$VERSION" == *-* ]]; then
             echo "ERROR: Cargo.toml version '$VERSION' contains a pre-release suffix."
             echo "Run './bump-version.sh --release' to strip it before tagging."
@@ -93,6 +105,8 @@ jobs:
       url: https://crates.io/crates/lorm
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
