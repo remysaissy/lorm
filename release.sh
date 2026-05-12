@@ -78,7 +78,9 @@ calculate_new_version() {
     local bump_type=$2
     local major minor patch
 
-    read -r major minor patch <<< "$(parse_version "$current_version")"
+    # Strip any pre-release suffix (e.g. "-dev") before parsing
+    local base_version="${current_version%%-*}"
+    read -r major minor patch <<< "$(parse_version "$base_version")"
 
     case $bump_type in
         major)   major=$((major + 1)); minor=0; patch=0 ;;
