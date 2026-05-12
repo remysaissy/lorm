@@ -38,10 +38,13 @@ jobs:
       - name: Run tests
         run: ./test.sh
 
-  attest:
-    name: Build Attestation
+  attest-and-publish:
+    name: Attest & Publish to crates.io
     needs: verify
     runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://crates.io/crates/lorm
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,52 +72,20 @@ jobs:
       - name: Build workspace
         run: cargo build --release --workspace
 
-      - name: Package crates for attestation
+      - name: Package and attest lorm-macros
         run: |
           cargo package -p lorm-macros --allow-dirty --target-dir attestation-artifacts
-
-          # lorm depends on lorm-macros which is not yet on crates.io.
-          # Patch crates-io to use the local workspace copy so cargo can resolve
-          # the dependency when generating the packaged manifest, then package
-          # without re-verifying the build (already done in the prior step).
-          printf '\n[patch.crates-io]\nlorm-macros = { path = "lorm-macros" }\n' >> Cargo.toml
-          cargo package -p lorm --allow-dirty --no-verify --target-dir attestation-artifacts
-          git checkout Cargo.toml
-
-          mkdir -p attestation-output
-          find attestation-artifacts/package -name '*.crate' -exec cp {} attestation-output/ \;
-          ls -la attestation-output/
+          cp attestation-artifacts/package/lorm-macros-*/lorm-macros-*.crate .
 
       - name: Attest lorm-macros crate
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: 'attestation-output/lorm-macros-*.crate'
-
-      - name: Attest lorm crate
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: 'attestation-output/lorm-*.crate'
-
-  publish:
-    name: Publish to crates.io
-    needs: attest
-    runs-on: ubuntu-latest
-    environment:
-      name: release
-      url: https://crates.io/crates/lorm
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
+          subject-path: 'lorm-macros-*.crate'
 
       - name: Authenticate with crates.io via Trusted Publishing
         uses: rust-lang/crates-io-auth-action@v1
         id: auth
 
-      # lorm-macros must be published before lorm (dependency ordering)
       - name: Publish lorm-macros
         run: cargo publish -p lorm-macros --no-verify
         env:
@@ -134,6 +105,16 @@ jobs:
           done
           echo "ERROR: lorm-macros $VERSION was not indexed after 5 minutes."
           exit 1
+
+      - name: Package and attest lorm
+        run: |
+          cargo package -p lorm --allow-dirty --no-verify --target-dir attestation-artifacts
+          cp attestation-artifacts/package/lorm-*/lorm-*.crate .
+
+      - name: Attest lorm crate
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'lorm-*.crate'
 
       - name: Publish lorm
         run: cargo publish -p lorm --no-verify
