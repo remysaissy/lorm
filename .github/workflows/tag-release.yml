@@ -1,0 +1,66 @@
+name: Tag Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  tag-and-release:
+    # Only run when a release PR is merged (not just closed)
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract version from PR title
+        id: version
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          if [[ ! "$TITLE" =~ ^Release\ v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "ERROR: PR title '$TITLE' does not match 'Release vX.Y.Z' format."
+            exit 1
+          fi
+          VERSION="${BASH_REMATCH[1]}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected release version: v$VERSION"
+
+      - name: Verify version matches Cargo.toml
+        run: |
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          if [ "$CARGO_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "ERROR: Cargo.toml version '$CARGO_VERSION' does not match PR version '${{ steps.version.outputs.version }}'."
+            exit 1
+          fi
+
+      - name: Check tag does not already exist
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "ERROR: Tag v${{ steps.version.outputs.version }} already exists."
+            exit 1
+          fi
+
+      - name: Create GitHub release with tag
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --target main \
+            --title "v${{ steps.version.outputs.version }}" \
+            --notes-file CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger release workflow
+        run: |
+          gh workflow run release.yml \
+            -f tag="v${{ steps.version.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
