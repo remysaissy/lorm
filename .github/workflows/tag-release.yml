@@ -75,23 +75,47 @@ jobs:
           echo "version=$NEXT_DEV" >> "$GITHUB_OUTPUT"
           echo "Next dev version: $NEXT_DEV"
 
-      - name: Create post-release branch
+      - name: Create post-release PR via API
         run: |
           BRANCH="chore/post-release-v${{ steps.version.outputs.version }}"
-          git checkout -b "$BRANCH"
+          NEXT_VERSION="${{ steps.next.outputs.version }}"
+          REPO="${{ github.repository }}"
 
-          sed -i "s/^version = \".*\"/version = \"${{ steps.next.outputs.version }}\"/" Cargo.toml
-          sed -i "/^lorm-macros = /s/version = \"[^\"]*\"/version = \"${{ steps.next.outputs.version }}\"/" lorm/Cargo.toml
+          # Get the SHA of main branch HEAD
+          MAIN_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')
 
-          git add Cargo.toml lorm/Cargo.toml
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -m "chore: begin development on ${{ steps.next.outputs.version }}"
-          git push origin "$BRANCH"
+          # Create the branch via API
+          gh api "repos/$REPO/git/refs" \
+            -f ref="refs/heads/$BRANCH" \
+            -f sha="$MAIN_SHA"
 
+          # Update Cargo.toml - bump workspace version
+          CARGO_CONTENT=$(gh api "repos/$REPO/contents/Cargo.toml" --jq '.content' | base64 -d)
+          CARGO_SHA=$(gh api "repos/$REPO/contents/Cargo.toml" --jq '.sha')
+          CARGO_UPDATED=$(echo "$CARGO_CONTENT" | sed "s/^version = \".*\"/version = \"$NEXT_VERSION\"/")
+          gh api "repos/$REPO/contents/Cargo.toml" \
+            -X PUT \
+            -f message="chore: bump workspace version to $NEXT_VERSION" \
+            -f content="$(echo "$CARGO_UPDATED" | base64)" \
+            -f branch="$BRANCH" \
+            -f sha="$CARGO_SHA"
+
+          # Update lorm/Cargo.toml - bump lorm-macros dependency version
+          LORM_CONTENT=$(gh api "repos/$REPO/contents/lorm/Cargo.toml" --jq '.content' | base64 -d)
+          LORM_SHA=$(gh api "repos/$REPO/contents/lorm/Cargo.toml" --jq '.sha')
+          LORM_UPDATED=$(echo "$LORM_CONTENT" | sed "/^lorm-macros = /s/version = \"[^\"]*\"/version = \"$NEXT_VERSION\"/")
+          gh api "repos/$REPO/contents/lorm/Cargo.toml" \
+            -X PUT \
+            -f message="chore: begin development on $NEXT_VERSION" \
+            -f content="$(echo "$LORM_UPDATED" | base64)" \
+            -f branch="$BRANCH" \
+            -f sha="$LORM_SHA"
+
+          # Create the PR
           gh pr create \
             --base main \
             --head "$BRANCH" \
-            --title "chore: begin development on ${{ steps.next.outputs.version }}" \
+            --title "chore: begin development on $NEXT_VERSION" \
             --body "Automated post-release version bump after v${{ steps.version.outputs.version }}."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
