@@ -91,21 +91,6 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
-      - name: Wait for crates.io to index lorm-macros
-        run: |
-          VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-          echo "Waiting for lorm-macros $VERSION to appear on crates.io..."
-          for i in $(seq 1 30); do
-            if cargo search lorm-macros 2>/dev/null | grep -q "lorm-macros = \"$VERSION\""; then
-              echo "lorm-macros $VERSION is now indexed."
-              exit 0
-            fi
-            echo "Attempt $i/30 — not yet indexed, waiting 10s..."
-            sleep 10
-          done
-          echo "ERROR: lorm-macros $VERSION was not indexed after 5 minutes."
-          exit 1
-
       - name: Package and attest lorm
         run: |
           cargo package -p lorm --allow-dirty --no-verify --target-dir attestation-artifacts
