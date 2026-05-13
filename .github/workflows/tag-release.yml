@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   actions: write
+  pull-requests: write
 
 jobs:
   tag-and-release:
@@ -62,5 +63,35 @@ jobs:
         run: |
           gh workflow run release.yml \
             -f tag="v${{ steps.version.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute next dev version
+        id: next
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          NEXT_DEV="$major.$minor.$((patch + 1))-dev"
+          echo "version=$NEXT_DEV" >> "$GITHUB_OUTPUT"
+          echo "Next dev version: $NEXT_DEV"
+
+      - name: Create post-release branch
+        run: |
+          BRANCH="chore/post-release-v${{ steps.version.outputs.version }}"
+          git checkout -b "$BRANCH"
+
+          sed -i "s/^version = \".*\"/version = \"${{ steps.next.outputs.version }}\"/" Cargo.toml
+          sed -i "/^lorm-macros = /s/version = \"[^\"]*\"/version = \"${{ steps.next.outputs.version }}\"/" lorm/Cargo.toml
+
+          git add Cargo.toml lorm/Cargo.toml
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "chore: begin development on ${{ steps.next.outputs.version }}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: begin development on ${{ steps.next.outputs.version }}" \
+            --body "Automated post-release version bump after v${{ steps.version.outputs.version }}."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

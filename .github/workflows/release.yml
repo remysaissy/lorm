@@ -75,7 +75,7 @@ jobs:
       - name: Package and attest lorm-macros
         run: |
           cargo package -p lorm-macros --allow-dirty --target-dir attestation-artifacts
-          cp attestation-artifacts/package/lorm-macros-*/lorm-macros-*.crate .
+          cp attestation-artifacts/package/lorm-macros-*.crate .
 
       - name: Attest lorm-macros crate
         uses: actions/attest-build-provenance@v2
@@ -109,7 +109,7 @@ jobs:
       - name: Package and attest lorm
         run: |
           cargo package -p lorm --allow-dirty --no-verify --target-dir attestation-artifacts
-          cp attestation-artifacts/package/lorm-*/lorm-*.crate .
+          cp attestation-artifacts/package/lorm-*.crate .
 
       - name: Attest lorm crate
         uses: actions/attest-build-provenance@v2
