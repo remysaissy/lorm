@@ -14,6 +14,7 @@ pub(crate) struct Column<'a> {
     pub(crate) column_name: String,
     pub(crate) is_flattened: bool,
     pub(crate) column_properties: ColumnProperties,
+    pub(crate) belongs_to: Option<crate::attributes::RelationTarget>,
 }
 
 impl<'a> Column<'a> {
@@ -57,6 +58,7 @@ impl<'a> Clone for Column<'a> {
             column_name: self.column_name.clone(),
             is_flattened: self.is_flattened,
             column_properties: self.column_properties.clone(),
+            belongs_to: self.belongs_to.clone(),
         }
     }
 }

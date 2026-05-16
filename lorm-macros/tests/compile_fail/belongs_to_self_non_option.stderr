@@ -1,0 +1,5 @@
+error: Self-referential `belongs_to = Self` requires the field to be `Option<T>` (nullable FK). Use `Option<Uuid>` instead of `Uuid`.
+ --> tests/compile_fail/belongs_to_self_non_option.rs:7:5
+  |
+7 |     #[lorm(belongs_to = Self)]
+  |     ^

@@ -1,0 +1,5 @@
+error: expected exactly one primary key when pk_type is Generated
+ --> tests/compile_fail/missing_belongs_to_target.rs:6:12
+  |
+6 | pub struct Link {
+  |            ^^^^
