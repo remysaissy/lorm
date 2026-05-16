@@ -1,0 +1,5 @@
+error: The `belongs_to` attribute is incompatible with `#[lorm(pk)]`. A primary key field cannot be a foreign key reference.
+ --> tests/compile_fail/belongs_to_on_pk.rs:7:5
+  |
+7 |     #[lorm(pk)]
+  |     ^

@@ -4,6 +4,7 @@ use crate::attributes::FieldProperties;
 use crate::attributes::PrimaryKeyType;
 use crate::attributes::TableAttributes;
 use crate::orm::column::Column;
+use crate::orm::relations::RelationInfo;
 use crate::utils::is_option_wrapped;
 use darling::FromDeriveInput;
 use darling::FromField;
@@ -52,6 +53,7 @@ pub(crate) struct OrmModel<'a> {
 
     pub(crate) primary_key: PrimaryKey<'a>,
     pub(crate) pk_selector_name: String,
+    pub(crate) relations: Vec<RelationInfo>,
 }
 
 impl<'a> OrmModel<'a> {
@@ -132,6 +134,32 @@ impl<'a> OrmModel<'a> {
             PrimaryKeyType::Manual => PrimaryKey::Manual(pk_columns),
         };
 
+        // Build relations: first from column-level `belongs_to`, then from table-level has_many/has_one specs
+        let relations_from_columns = columns
+            .iter()
+            .filter_map(|col| {
+                col.belongs_to.as_ref().map(|target| RelationInfo {
+                    target: target.clone(),
+                    fk_column: col.column_name.clone(),
+                    method_name: String::new(),
+                    cardinality: crate::attributes::Cardinality::BelongsTo,
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let relations_from_table = top_level_attributes
+            .has_relations()
+            .map(|spec| RelationInfo {
+                target: spec.target.clone(),
+                fk_column: spec.fk.clone().unwrap_or_default(),
+                method_name: spec.method_name.clone().unwrap_or_default(),
+                cardinality: spec.cardinality,
+            })
+            .collect::<Vec<_>>();
+
+        let mut relations = relations_from_columns;
+        relations.extend(relations_from_table);
+
         Ok(Self {
             struct_name,
             struct_visibility,
@@ -139,6 +167,7 @@ impl<'a> OrmModel<'a> {
             columns,
             primary_key,
             pk_selector_name,
+            relations,
         })
     }
 
@@ -256,15 +285,17 @@ fn process_struct_field<'a>(field: &'a Field, columns: &mut Vec<Column<'a>>) -> 
                 new_expression: syn::parse_str("Default::default()").unwrap(),
                 is_set_expression: None,
                 use_json: false,
+                belongs_to_target: None,
             };
 
             columns.push(Column {
                 base_field: field,
                 field: entry.ident,
                 ty,
-                is_flattened: true,
                 column_name: entry.column_name,
+                is_flattened: true,
                 column_properties: col_props,
+                belongs_to: None,
             });
         }
 
@@ -278,7 +309,10 @@ fn process_struct_field<'a>(field: &'a Field, columns: &mut Vec<Column<'a>>) -> 
     }
 
     let logical_fields: Box<dyn Iterator<Item = Column<'a>>> = {
-        let column_name = properties.column_name;
+        let column_name = properties.column_name.clone();
+        // move out column_properties once, then extract belongs_to from it
+        let col_props = properties.column_properties;
+        let belongs_to = col_props.belongs_to_target.clone();
 
         let logical_field = Column {
             base_field: field,
@@ -286,7 +320,8 @@ fn process_struct_field<'a>(field: &'a Field, columns: &mut Vec<Column<'a>>) -> 
             ty: parse((&field.ty).into_token_stream().into())?,
             is_flattened: false,
             column_name,
-            column_properties: properties.column_properties,
+            column_properties: col_props,
+            belongs_to,
         };
 
         Box::new(Some(logical_field).into_iter())

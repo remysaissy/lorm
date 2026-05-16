@@ -1,0 +1,8 @@
+error[E0283]: type annotations needed
+ --> tests/compile_fail/has_many_no_as_for_self.rs:5:42
+  |
+5 | #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+  |                                          ^^^^^^ cannot infer type
+  |
+  = note: cannot satisfy `_: Default`
+  = note: this error originates in the derive macro `ToLOrm` (in Nightly builds, run with -Z macro-backtrace for more info)
