@@ -1,0 +1,5 @@
+error: unknown key `through` (supported: fk, as)
+ --> tests/compile_fail/has_many_through.rs:7:8
+  |
+7 | #[lorm(has_many(Post, through = "Tag"))]
+  |        ^^^^^^^^

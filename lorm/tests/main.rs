@@ -40,6 +40,8 @@ mod models {
     }
 
     #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    #[lorm(has_many = Post)]
+    #[lorm(has_one = Profile)]
     pub struct User {
         #[lorm(pk)]
         #[lorm(new = "Uuid::new_v4()")]
@@ -158,6 +160,41 @@ mod models {
     pub struct Tag {
         #[lorm(pk)]
         pub name: String,
+    }
+
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    #[lorm(has_many(Self, fk = "parent_id", as = "children"))]
+    pub struct Category {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        pub name: String,
+        #[lorm(belongs_to = Self)]
+        pub parent_id: Option<Uuid>,
+    }
+
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    pub struct Post {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        pub title: String,
+        pub published: bool,
+        #[lorm(belongs_to = User)]
+        pub user_id: Uuid,
+    }
+
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    pub struct Draft {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        pub title: String,
+        #[lorm(belongs_to = User)]
+        pub user_id: Option<Uuid>,
     }
 
     #[cfg(feature = "sqlite")]
@@ -1111,6 +1148,28 @@ async fn test_tag_full_key_upsert_idempotent_mysql() {
         .unwrap();
 }
 
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_self_ref_category_compiles() {
+    use models::Category;
+
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let mut cat = Category::default();
+    cat.name = "Root".to_string();
+    let cat = cat.save(&pool).await.expect("Category save failed");
+
+    let parent = cat.parent();
+    assert!(parent.is_none(), "Expected parent() to return None");
+
+    let children = cat
+        .children()
+        .build(&pool)
+        .await
+        .expect("children() build failed");
+    assert!(children.is_empty(), "Expected no children");
+}
+
 #[tokio::test]
 async fn test_backcompat_generated_pk_by_id_still_works() {
     let pool = get_pool().await.expect("Failed to create pool");
@@ -1121,4 +1180,187 @@ async fn test_backcompat_generated_pk_by_id_still_works() {
 
     let fetched = User::by_id(&pool, &u.id).await.unwrap();
     assert_eq!(fetched.id, u.id);
+}
+
+#[cfg(feature = "sqlite")]
+mod relations {
+    use super::get_pool;
+    use super::models::*;
+
+    #[tokio::test]
+    async fn test_belongs_to_basic() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut u = User::default();
+        u.email = "belongs-to@test.com".to_string();
+        let u = u.save(&pool).await.unwrap();
+
+        let mut p = Post::default();
+        p.title = "Hello World".to_string();
+        p.user_id = u.id;
+        let p = p.save(&pool).await.unwrap();
+
+        let users = p.user().build(&pool).await.unwrap();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].id, u.id);
+    }
+
+    #[tokio::test]
+    async fn test_has_many_returns_all() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut u = User::default();
+        u.email = "has-many@test.com".to_string();
+        let u = u.save(&pool).await.unwrap();
+
+        for i in 0..3_u32 {
+            let mut p = Post::default();
+            p.title = format!("Post {i}");
+            p.user_id = u.id;
+            p.save(&pool).await.unwrap();
+        }
+
+        let posts = u.posts().build(&pool).await.unwrap();
+        assert_eq!(posts.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_has_one_semantics() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut u = User::default();
+        u.email = "has-one@test.com".to_string();
+        let u = u.save(&pool).await.unwrap();
+
+        let profile = Profile {
+            user_id: u.id,
+            preferences: serde_json::json!({"theme": "light"}),
+            ..Default::default()
+        };
+        let profile = profile.save(&pool).await.unwrap();
+
+        let profile_opt = u
+            .profile()
+            .limit(1)
+            .build(&pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .next();
+        assert!(profile_opt.is_some());
+        assert_eq!(profile_opt.unwrap().id, profile.id);
+    }
+
+    #[tokio::test]
+    async fn test_fk_override() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut parent = Category::default();
+        parent.name = "Parent".to_string();
+        let parent = parent.save(&pool).await.unwrap();
+
+        let mut child = Category::default();
+        child.name = "Child".to_string();
+        child.parent_id = Some(parent.id);
+        let child = child.save(&pool).await.unwrap();
+
+        let children = parent.children().build(&pool).await.unwrap();
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0].id, child.id);
+    }
+
+    #[tokio::test]
+    async fn test_method_name_override() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut cat = Category::default();
+        cat.name = "Lone Category".to_string();
+        let cat = cat.save(&pool).await.unwrap();
+
+        let children = cat.children().build(&pool).await.unwrap();
+        assert!(children.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_self_ref_tree() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut root = Category::default();
+        root.name = "Root".to_string();
+        let root = root.save(&pool).await.unwrap();
+
+        for i in 0..2_u32 {
+            let mut c = Category::default();
+            c.name = format!("Child {i}");
+            c.parent_id = Some(root.id);
+            c.save(&pool).await.unwrap();
+        }
+
+        let children = root.children().build(&pool).await.unwrap();
+        assert_eq!(children.len(), 2);
+
+        let child = &children[0];
+        let parent_builder = child.parent().expect("child should have a parent builder");
+        let parents = parent_builder.build(&pool).await.unwrap();
+        assert_eq!(parents.len(), 1);
+        assert_eq!(parents[0].id, root.id);
+    }
+
+    #[tokio::test]
+    async fn test_composability() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut u = User::default();
+        u.email = "compose@test.com".to_string();
+        let u = u.save(&pool).await.unwrap();
+
+        for i in 0..5_u32 {
+            let mut p = Post::default();
+            p.title = format!("Post {i}");
+            p.user_id = u.id;
+            p.save(&pool).await.unwrap();
+        }
+
+        let posts = u.posts().limit(3).build(&pool).await.unwrap();
+        assert_eq!(posts.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_nullable_fk_belongs_to() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut d = Draft::default();
+        d.title = "Untitled Draft".to_string();
+        let d = d.save(&pool).await.unwrap();
+
+        let user_builder = d.user();
+        assert!(user_builder.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_multiple_relations_one_struct() {
+        let pool = get_pool().await.expect("Failed to create pool");
+
+        let mut u = User::default();
+        u.email = "multi-rel@test.com".to_string();
+        let u = u.save(&pool).await.unwrap();
+
+        let mut p = Post::default();
+        p.title = "My Post".to_string();
+        p.user_id = u.id;
+        p.save(&pool).await.unwrap();
+
+        let profile = Profile {
+            user_id: u.id,
+            preferences: serde_json::json!({}),
+            ..Default::default()
+        };
+        profile.save(&pool).await.unwrap();
+
+        let posts = u.posts().build(&pool).await.unwrap();
+        assert_eq!(posts.len(), 1);
+
+        let profiles = u.profile().build(&pool).await.unwrap();
+        assert_eq!(profiles.len(), 1);
+    }
 }

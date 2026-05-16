@@ -1,3 +1,5 @@
+use heck::ToSnakeCase;
+use pluralizer::pluralize;
 use quote::{__private::TokenStream, ToTokens, quote};
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Field, PathArguments, Type, parse};
@@ -196,4 +198,86 @@ pub(crate) fn get_bind_param_type_and_usage(
         )
     };
     Ok(res)
+}
+
+/// Infers the default foreign key column name for a parent model type.
+///
+/// Uses the last segment of the type path, snake_case + `_id`.
+/// Examples:
+/// - `User` -> `user_id`
+/// - `crate::auth::User` -> `user_id`
+pub(crate) fn infer_fk_column(target: &syn::Path) -> String {
+    let last = target
+        .segments
+        .last()
+        .map(|s| s.ident.to_string())
+        .unwrap_or_default();
+    format!("{}_id", last.to_snake_case())
+}
+
+/// Default method name for a has_many relation: pluralized snake_case of last segment.
+pub(crate) fn default_has_many_method(target: &syn::Path) -> String {
+    let last = target
+        .segments
+        .last()
+        .map(|s| s.ident.to_string())
+        .unwrap_or_default();
+    // pluralizer::pluralize(text, count, is_uncountable)
+    pluralize(&last.to_snake_case(), 2, false)
+}
+
+/// Default method name for a has_one relation: snake_case of last segment.
+pub(crate) fn default_has_one_method(target: &syn::Path) -> String {
+    target
+        .segments
+        .last()
+        .map(|s| s.ident.to_string().to_snake_case())
+        .unwrap_or_default()
+}
+
+/// Default method name for a belongs_to relation: snake_case of last segment.
+pub(crate) fn default_belongs_to_method(target: &syn::Path) -> String {
+    target
+        .segments
+        .last()
+        .map(|s| s.ident.to_string().to_snake_case())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn infer_fk_column_basic() {
+        let p: syn::Path = syn::parse_str("User").unwrap();
+        assert_eq!(infer_fk_column(&p), "user_id");
+    }
+
+    #[test]
+    fn infer_fk_column_crate_path() {
+        let p: syn::Path = syn::parse_str("crate::auth::User").unwrap();
+        assert_eq!(infer_fk_column(&p), "user_id");
+    }
+
+    #[test]
+    fn default_has_many_examples() {
+        let p: syn::Path = syn::parse_str("Post").unwrap();
+        assert_eq!(default_has_many_method(&p), "posts");
+
+        let p: syn::Path = syn::parse_str("Person").unwrap();
+        assert_eq!(default_has_many_method(&p), "people");
+
+        let p: syn::Path = syn::parse_str("Octopus").unwrap();
+        assert_eq!(default_has_many_method(&p), "octopuses");
+    }
+
+    #[test]
+    fn default_has_one_and_belongs_to() {
+        let p: syn::Path = syn::parse_str("Profile").unwrap();
+        assert_eq!(default_has_one_method(&p), "profile");
+
+        let p: syn::Path = syn::parse_str("User").unwrap();
+        assert_eq!(default_belongs_to_method(&p), "user");
+    }
 }

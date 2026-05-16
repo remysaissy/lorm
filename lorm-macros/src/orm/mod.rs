@@ -1,6 +1,7 @@
 mod by;
 pub mod column;
 mod delete;
+pub mod relations;
 mod save;
 mod select;
 mod with;
@@ -62,6 +63,8 @@ pub fn expand_derive_to_orm_struct(
     let select_code = select::generate_select(&executor_type, &database_type, &model)?;
     let delete_code = delete::generate_delete(&executor_type, &model)?;
     let save_code = save::generate_save(&executor_type, &model)?;
+    let belongs_to_code = relations::generate_belongs_to(&model);
+    let has_relations_code = relations::generate_has_relations(&model);
 
     Ok(TokenStream::from(quote! {
         #with_code
@@ -69,5 +72,7 @@ pub fn expand_derive_to_orm_struct(
         #select_code
         #delete_code
         #save_code
+        #belongs_to_code
+        #has_relations_code
     }))
 }
