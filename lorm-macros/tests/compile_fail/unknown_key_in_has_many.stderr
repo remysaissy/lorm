@@ -1,0 +1,5 @@
+error: unknown key `unknown` (supported: fk, as)
+ --> tests/compile_fail/unknown_key_in_has_many.rs:6:8
+  |
+6 | #[lorm(has_many(Post, unknown = "x"))]
+  |        ^^^^^^^^

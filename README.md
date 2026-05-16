@@ -11,6 +11,7 @@ Lorm is an async and lightweight ORM for SQLx that uses derive macros to generat
 - **Flexible querying** - Builder pattern for complex queries with filtering, ordering, grouping, aggregation, and pagination
 - **Pool and Transaction support** - Works seamlessly with both connection pools and transactions
 - **Timestamp management** - Automatic handling of `created_at` and `updated_at` fields
+- **Relations** - Explicit composable relations with `belongs_to`, `has_many`, and `has_one` support
 - **Custom field generation** - Support for UUID, custom types, and database-generated values
 
 ## Quickstart
@@ -120,6 +121,7 @@ Lorm provides several attributes to customize code generation. Attributes can be
 | `#[lorm(new="expr")]` | Custom expression to generate field value | `#[lorm(new="Uuid::new_v4()")]` | Used in INSERT queries |
 | `#[lorm(is_set="path")]` | Callable path to check if field has a value — invoked as `(path)(&field)`, must return `bool` | `#[lorm(is_set="Uuid::is_nil")]` | Used to determine INSERT vs UPDATE |
 | `#[lorm(rename="name")]` | Renames field to specific column name | `#[lorm(rename="user_email")]` | Uses custom column name |
+| `#[lorm(belongs_to = Target)]` | Defines a many-to-one relationship. Field must be the foreign key. | `#[lorm(belongs_to = User)]`<br>`pub user_id: Uuid` | `user()` method returning a `SelectBuilder` |
 | `#[sqlx(json)]` | Serialises the field as JSON when writing and deserialises it when reading. Lorm wraps bind values with `sqlx::types::Json` automatically. Cannot be combined with `#[lorm(pk)]`. | `#[sqlx(json)]`<br>`pub preferences: serde_json::Value` | Field stored as JSON/JSONB/TEXT depending on backend |
 | `#[sqlx(flatten)]` + `#[lorm(flattened(...))]` | Flattens a nested struct field into multiple SQL columns. Requires both attributes. For optional nested structs, use `Option<Nested>`. | `#[sqlx(flatten)]`<br>`#[lorm(flattened(street: String, zip: String = "zip_code"))]`<br>`pub address: Address` | Nested field is expanded into multiple columns |
 
@@ -169,6 +171,8 @@ pub struct OptCustomer {
 | `#[lorm(rename="name")]` | Sets custom table name | `#[lorm(rename="app_users")]`<br>`struct User` |
 | `#[lorm(pk_type="manual")]` | Enables composite/manual primary key mode. All `#[lorm(pk)]` fields form the composite key. | `#[lorm(pk_type="manual")]`<br>`struct UserRole` |
 | `#[lorm(pk_selector="name")]` | Custom selector method name for composite pk (default: `by_key` for 2+ fields, `by_<field>` for 1 field) | `#[lorm(pk_type="manual", pk_selector="find_by_ids")]` |
+| `#[lorm(has_many = Target)]` | Defines a one-to-many relationship. | `#[lorm(has_many = Post)]` |
+| `#[lorm(has_one = Target)]` | Defines a one-to-one relationship. | `#[lorm(has_one = Profile)]` |
 
 #### Naming Conventions
 
@@ -196,6 +200,74 @@ pub created_at: DateTime<FixedOffset>
 #[lorm(created_at, readonly)]
 pub created_at: DateTime<FixedOffset>
 ```
+
+### Relations
+
+Lorm supports explicit relations between models. Relations generate methods that return a `SelectBuilder` for the target model, allowing you to chain further filters or execute the query.
+
+#### belongs_to
+
+Use `#[lorm(belongs_to = Target)]` on a foreign key field to define a many-to-one relationship.
+
+```rust
+#[derive(Debug, Default, FromRow, ToLOrm)]
+struct Post {
+    #[lorm(pk, new = "Uuid::new_v4()")]
+    pub id: Uuid,
+
+    pub title: String,
+
+    #[lorm(belongs_to = User)]
+    pub user_id: Uuid,
+}
+
+// Usage:
+let user = post.user().build(&pool).await?.into_iter().next().unwrap();
+```
+
+If the foreign key is an `Option`, the generated method returns an `Option<SelectBuilder>`.
+
+#### has_many and has_one
+
+Use `#[lorm(has_many = Target)]` or `#[lorm(has_one = Target)]` at the struct level to define the inverse relationship.
+
+```rust
+#[derive(Debug, Default, FromRow, ToLOrm)]
+#[lorm(has_many = Post)]
+#[lorm(has_one = Profile)]
+struct User {
+    #[lorm(pk, new = "Uuid::new_v4()")]
+    pub id: Uuid,
+}
+
+// Usage:
+let posts = user.posts().build(&pool).await?;
+let profile = user.profile().limit(1).build(&pool).await?.into_iter().next();
+```
+
+By default, Lorm infers the foreign key column name as `parent_snake_case_id` (e.g., `user_id` for a `User` model). You can override this and the generated method name:
+
+```rust
+#[lorm(has_many(Post, fk = "author_id", as = "written_posts"))]
+```
+
+#### Self-referential Relations
+
+Lorm supports self-referential relations using `Self`.
+
+```rust
+#[derive(Debug, Default, FromRow, ToLOrm)]
+#[lorm(has_many(Self, fk = "parent_id", as = "children"))]
+struct Category {
+    #[lorm(pk, new = "Uuid::new_v4()")]
+    pub id: Uuid,
+
+    #[lorm(belongs_to = Self)]
+    pub parent_id: Option<Uuid>,
+}
+```
+
+Note: `belongs_to = Self` requires the foreign key field to be an `Option` to allow for the root of the hierarchy.
 
 ### Query Builder API
 
@@ -330,6 +402,7 @@ Complete, runnable examples are available in the [`examples/`](examples/) direct
 - **[basic_crud.rs](examples/basic_crud.rs)** - Create, read, update, and delete operations
 - **[query_builder.rs](examples/query_builder.rs)** - Advanced querying with filtering, ordering, and pagination
 - **[transactions.rs](examples/transactions.rs)** - Transaction handling and atomic operations
+- **[relations.rs](examples/relations.rs)** - Relationships (belongs_to, has_many, has_one, self-ref)
 
 Run an example with:
 ```bash
@@ -375,7 +448,7 @@ let results = sqlx::query_as::<_, User>(
 
 ### Does Lorm support relationships/joins?
 
-No. Lorm focuses on single-table CRUD operations. For relationships and joins, use SQLx directly.
+Yes! Lorm supports explicit composable relations through `belongs_to`, `has_many`, and `has_one`. These methods return a `SelectBuilder` that you can further customize before executing. Lorm does not support eager loading or JOINs at this time; each relation fetch is a separate query. For complex JOINs, use SQLx directly.
 
 ### How do I handle migrations?
 
@@ -471,7 +544,7 @@ Lorm is designed to be:
 ## Limitations
 
 - No automatic schema migrations (use SQLx migrations or other tools)
-- No relationships/joins (use SQLx for complex queries)
+- No eager loading or JOIN support (relations are fetched via separate queries)
 - Requires `Default` trait on structs for most operations
 - Primary key field name detection is attribute-based, not convention-based
 
@@ -484,10 +557,10 @@ Lorm is designed to be:
 - You want explicit control over your database schema
 
 **Consider alternatives when:**
-- You need complex relationships and joins
+- You need complex JOIN-heavy queries or eager loading
 - You want automatic schema migrations
 - You need an Active Record pattern
-- You require ORM-managed relationships
+- You require ORM-managed migrations
 
 ## Contributing
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### 🚀 Features
+
+- feat(relations): add belongs_to/has_many/has_one/self-referential relations
+
 ## [0.4.7] - 2026-05-13
 
 ### 🐛 Bug Fixes

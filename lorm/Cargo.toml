@@ -49,5 +49,9 @@ name = "transactions"
 path = "../examples/transactions.rs"
 
 [[example]]
+name = "relations"
+path = "../examples/relations.rs"
+
+[[example]]
 name = "test"
 path = "../examples/test.rs"

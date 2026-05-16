@@ -115,6 +115,7 @@ pub fn generate_select(
         .collect();
     let table_name = &model.table_name;
     let select_base = format!("SELECT {select_columns} from {table_name}");
+    let with_initial_where_prefix = format!("SELECT {select_columns} from {table_name} WHERE ");
 
     Ok(quote! {
         #struct_visibility trait #trait_ident<#lifetime> {
@@ -151,6 +152,24 @@ pub fn generate_select(
 
         #[automatically_derived]
         impl<#lifetime> #builder_struct_ident<#lifetime> {
+            #struct_visibility fn with_initial_where<T>(fk_col: &str, value: T) -> Self
+            where
+                T: sqlx::Encode<#lifetime, #database_type> + sqlx::Type<#database_type> + Send + #lifetime,
+            {
+                let sql = format!("{}{} = ", #with_initial_where_prefix, fk_col);
+                let mut builder = sqlx::QueryBuilder::new(sql);
+                builder.push_bind(value);
+                Self {
+                    builder,
+                    all_columns: vec![#(#all_column_names.to_string()),*],
+                    grouped_columns: Vec::new(),
+                    is_where: true,
+                    is_having: false,
+                    is_group_by: false,
+                    group_by_completed: false,
+                    is_order_by: false,
+                }
+            }
             fn complete_group_by(&mut self) {
                 if self.is_group_by && !self.group_by_completed {
                     let remaining: Vec<&String> = self.all_columns.iter()
