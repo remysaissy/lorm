@@ -263,6 +263,8 @@ mod models {
     }
 
     #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    #[lorm(has_many = Post)]
+    #[lorm(has_one = Profile)]
     pub struct User {
         #[lorm(pk)]
         #[lorm(new = "Uuid::new_v4()")]
@@ -405,6 +407,41 @@ mod models {
     pub struct Tag {
         #[lorm(pk)]
         pub name: String,
+    }
+
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    #[lorm(has_many(Self, fk = "parent_id", as = "children"))]
+    pub struct Category {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        pub name: String,
+        #[lorm(belongs_to = Self)]
+        pub parent_id: Option<Uuid>,
+    }
+
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    pub struct Post {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        pub title: String,
+        pub published: bool,
+        #[lorm(belongs_to = User)]
+        pub user_id: Uuid,
+    }
+
+    #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
+    pub struct Draft {
+        #[lorm(pk)]
+        #[lorm(new = "Uuid::new_v4()")]
+        #[lorm(is_set = "Uuid::is_nil")]
+        pub id: Uuid,
+        pub title: String,
+        #[lorm(belongs_to = User)]
+        pub user_id: Option<Uuid>,
     }
 }
 
@@ -1148,7 +1185,6 @@ async fn test_tag_full_key_upsert_idempotent_mysql() {
         .unwrap();
 }
 
-#[cfg(feature = "sqlite")]
 #[tokio::test]
 async fn test_self_ref_category_compiles() {
     use models::Category;
@@ -1182,7 +1218,6 @@ async fn test_backcompat_generated_pk_by_id_still_works() {
     assert_eq!(fetched.id, u.id);
 }
 
-#[cfg(feature = "sqlite")]
 mod relations {
     use super::get_pool;
     use super::models::*;
