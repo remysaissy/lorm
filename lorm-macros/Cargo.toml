@@ -33,7 +33,7 @@ mysql = []
 
 [dev-dependencies]
 trybuild = { version = "1", features = ["diff"] }
-lorm = { path = "../lorm", version = "0.4.7", default-features = false }
-sqlx = { workspace = true, features = ["derive", "uuid"] }
+lorm = { path = "../lorm", version = "0.4.7", default-features = false, features = ["sqlite"] }
+sqlx = { workspace = true, features = ["derive", "sqlite", "uuid"] }
 uuid = { workspace = true, features = ["v4"] }
 chrono = { workspace = true, features = ["std"] }

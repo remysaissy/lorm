@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS drafts (
-    id      TEXT PRIMARY KEY NOT NULL,
+    id      UUID PRIMARY KEY NOT NULL,
     title   TEXT NOT NULL,
-    user_id TEXT REFERENCES users(id)
+    user_id UUID REFERENCES users(id)
 );

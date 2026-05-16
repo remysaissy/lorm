@@ -43,11 +43,11 @@ jobs:
             database_url: ""
             database_admin_url: ""
           - name: "postgres"
-            flags: "--no-default-features --features=postgres"
+            flags: "--no-default-features --features=postgres -p lorm"
             database_url: "postgres://lorm:lorm@localhost:5432/lorm_test"
             database_admin_url: ""
           - name: "mysql"
-            flags: "--no-default-features --features=mysql"
+            flags: "--no-default-features --features=mysql -p lorm"
             database_url: "mysql://lorm:lorm@localhost:3306/lorm_test"
             database_admin_url: "mysql://root:lorm@localhost:3306/lorm_test"
     services:

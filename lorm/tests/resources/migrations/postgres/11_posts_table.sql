@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS posts (
-    id        TEXT    PRIMARY KEY NOT NULL,
+    id        UUID    PRIMARY KEY NOT NULL,
     title     TEXT    NOT NULL,
     published BOOLEAN NOT NULL DEFAULT FALSE,
-    user_id   TEXT    NOT NULL REFERENCES users(id)
+    user_id   UUID    NOT NULL REFERENCES users(id)
 );
