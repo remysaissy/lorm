@@ -500,7 +500,7 @@ We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for det
 Published crate artifacts include [GitHub Artifact Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) for supply chain verification:
 
 ```bash
-gh attestation verify ./lorm-*.crate --repo lorm-rs/lorm
+gh attestation verify ./lorm-*.crate --repo remysaissy/lorm
 ```
 
 ## License

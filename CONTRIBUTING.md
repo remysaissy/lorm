@@ -7,7 +7,7 @@ You can use this document to figure out how and where to start.
 ## Getting started
 
 - Make sure you have a [GitHub account](https://github.com/join).
-- Take a look at [existing issues](https://github.com/lorm-rs/lorm/issues).
+- Take a look at [existing issues](https://github.com/remysaissy/lorm/issues).
 - If you need to create an issue:
     - Make sure to clearly describe it.
     - Including steps to reproduce when it is a bug.
@@ -93,8 +93,8 @@ We try to mark issues with a suggested level of experience (in Rust/SQL).
 Where possible we try to spell out how to go about implementing the feature.
 
 To start with, check out:
-- Issues labeled as ["good first issue"](https://github.com/lorm-rs/lorm/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22).
-- Issues labeled as ["Easy"](https://github.com/lorm-rs/lorm/issues?q=is%3Aopen+is%3Aissue+label%3AE-easy).
+- Issues labeled as ["good first issue"](https://github.com/remysaissy/lorm/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22).
+- Issues labeled as ["Easy"](https://github.com/remysaissy/lorm/issues?q=is%3Aopen+is%3Aissue+label%3AE-easy).
 
 Additionally, it's always good to work on improving/adding examples and documentation.
 
@@ -110,7 +110,7 @@ Additionally, it's always good to work on improving/adding examples and document
 ### Building the Project
 ```bash
 # Clone the repository
-git clone https://github.com/lorm-rs/lorm.git
+git clone https://github.com/remysaissy/lorm.git
 cd lorm
 
 # Build all workspace members
@@ -174,7 +174,7 @@ When contributing:
 ## Communication
 
 If you're unsure about your contribution or simply want to ask a question about anything, you can:
-- Discuss something directly in the [Github issue](https://github.com/lorm-rs/lorm/issues).
+- Discuss something directly in the [Github issue](https://github.com/remysaissy/lorm/issues).
 
 ## Running Tests
 
