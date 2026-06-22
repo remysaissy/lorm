@@ -50,6 +50,16 @@ Illustrates transaction handling:
 cargo run --example transactions -p lorm
 ```
 
+### relations.rs
+Demonstrates model relationships:
+- belongs_to relations
+- has_many and has_one relations
+- Self-referential relationships
+
+```bash
+cargo run --example relations -p lorm
+```
+
 ## Requirements
 
 All examples use an in-memory SQLite database for simplicity and require no additional setup. They will:
@@ -65,6 +75,7 @@ If you're new to Lorm, we recommend running the examples in this order:
 1. **basic_crud.rs** - Start here to understand fundamental operations
 2. **query_builder.rs** - Learn advanced querying capabilities
 3. **transactions.rs** - Understand transaction handling
+4. **relations.rs** - Master model relationships
 
 ## Adapting Examples
 

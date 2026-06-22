@@ -1,3 +1,4 @@
+use crate::utils::is_option_wrapped;
 use darling::FromField;
 use darling::FromMeta;
 use darling::util::Callable;
@@ -25,15 +26,21 @@ fn default_pk_type() -> PrimaryKeyType {
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(lorm), supports(struct_named))]
-pub struct TableAttributes {
+pub(crate) struct TableAttributes {
     #[darling(rename = "rename")]
     table_name_override: Option<String>,
 
     #[darling(default = "default_pk_type")]
-    pub pk_type: PrimaryKeyType,
+    pub(crate) pk_type: PrimaryKeyType,
 
     #[darling(rename = "pk_selector")]
-    pub pk_selector: Option<String>,
+    pub(crate) pk_selector: Option<String>,
+
+    #[darling(rename = "has_many", multiple, default, with = "parse_has_many_spec")]
+    pub(crate) has_many_specs: Vec<HasRelSpec>,
+
+    #[darling(rename = "has_one", multiple, default, with = "parse_has_one_spec")]
+    pub(crate) has_one_specs: Vec<HasRelSpec>,
 }
 
 impl TableAttributes {
@@ -62,6 +69,10 @@ impl TableAttributes {
         } else {
             "by_key".to_string()
         }
+    }
+
+    pub fn has_relations(&self) -> impl Iterator<Item = &HasRelSpec> {
+        self.has_many_specs.iter().chain(self.has_one_specs.iter())
     }
 }
 
@@ -116,6 +127,209 @@ impl darling::FromMeta for FlattenedFields {
     }
 }
 
+/// Target type for a relation — either a specific type path or the current struct itself (Self).
+#[derive(Debug, Clone)]
+pub(crate) enum RelationTarget {
+    /// A specific model type, e.g., `User`, `crate::models::User`
+    Path(syn::Path),
+    /// Self-referential: `belongs_to = Self`
+    SelfRef,
+}
+
+impl darling::FromMeta for RelationTarget {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        match item {
+            syn::Meta::NameValue(nv) => match &nv.value {
+                syn::Expr::Path(expr_path) => {
+                    let path = &expr_path.path;
+                    if path.is_ident("Self") || path.is_ident("self") {
+                        Ok(RelationTarget::SelfRef)
+                    } else {
+                        Ok(RelationTarget::Path(path.clone()))
+                    }
+                }
+                _ => Err(darling::Error::custom(
+                    "belongs_to requires a type name, e.g. #[lorm(belongs_to = User)]",
+                )
+                .with_span(item)),
+            },
+            syn::Meta::Path(path) => {
+                // Handle bare `belongs_to = Self` case when darling passes just the path
+                if path.is_ident("Self") || path.is_ident("self") {
+                    Ok(RelationTarget::SelfRef)
+                } else {
+                    Ok(RelationTarget::Path(path.clone()))
+                }
+            }
+            _ => Err(darling::Error::custom(
+                "belongs_to requires a type, e.g. #[lorm(belongs_to = User)] or #[lorm(belongs_to = Self)]",
+            )
+            .with_span(item)),
+        }
+    }
+
+    fn from_expr(expr: &syn::Expr) -> darling::Result<Self> {
+        match expr {
+            syn::Expr::Path(expr_path) => {
+                let path = &expr_path.path;
+                if path.is_ident("Self") || path.is_ident("self") {
+                    Ok(RelationTarget::SelfRef)
+                } else {
+                    Ok(RelationTarget::Path(path.clone()))
+                }
+            }
+            _ => Err(darling::Error::custom(
+                "belongs_to requires a type name, e.g. #[lorm(belongs_to = User)]",
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) enum Cardinality {
+    HasMany,
+    HasOne,
+    BelongsTo,
+}
+
+/// Parsed spec for `#[lorm(has_many(...))]` / `#[lorm(has_one(...))]`.
+///
+/// Supports the following forms:
+/// - `#[lorm(has_many = Post)]`
+/// - `#[lorm(has_many(Post, fk = "user_id"))]`
+/// - `#[lorm(has_many(Post, fk = "user_id", as = "authored_posts"))]`
+/// - `#[lorm(has_one = Profile)]`
+/// - `#[lorm(has_many = Self)]`
+#[derive(Debug, Clone)]
+pub(crate) struct HasRelSpec {
+    pub target: RelationTarget,
+    pub fk: Option<String>,
+    pub method_name: Option<String>,
+    pub cardinality: Cardinality,
+}
+
+#[derive(Debug)]
+struct HasRelSpecArgs {
+    target: RelationTarget,
+    fk: Option<String>,
+    method_name: Option<String>,
+}
+
+impl syn::parse::Parse for HasRelSpecArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let target_path: syn::Path = input.parse()?;
+        let target = if target_path.is_ident("Self") || target_path.is_ident("self") {
+            RelationTarget::SelfRef
+        } else {
+            RelationTarget::Path(target_path)
+        };
+
+        let mut fk: Option<String> = None;
+        let mut method_name: Option<String> = None;
+
+        while input.peek(syn::Token![,]) {
+            let _comma: syn::Token![,] = input.parse()?;
+            if input.is_empty() {
+                break;
+            }
+
+            // `as` is a keyword; it cannot be parsed as an Ident.
+            if input.peek(syn::Token![as]) {
+                let _: syn::Token![as] = input.parse()?;
+                let _eq: syn::Token![=] = input.parse()?;
+                let val: syn::LitStr = input.parse()?;
+                method_name = Some(val.value());
+                continue;
+            }
+
+            let key: syn::Ident = input.parse()?;
+            let _eq: syn::Token![=] = input.parse()?;
+            let val: syn::LitStr = input.parse()?;
+
+            match key.to_string().as_str() {
+                "fk" => fk = Some(val.value()),
+                other => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        format!("unknown key `{}` (supported: fk, as)", other),
+                    ));
+                }
+            }
+        }
+
+        Ok(Self {
+            target,
+            fk,
+            method_name,
+        })
+    }
+}
+
+impl HasRelSpec {
+    fn with_cardinality(mut self, cardinality: Cardinality) -> Self {
+        self.cardinality = cardinality;
+        self
+    }
+
+    fn from_meta_without_cardinality(item: &syn::Meta) -> darling::Result<Self> {
+        match item {
+            // `has_many = Post`
+            syn::Meta::NameValue(nv) => {
+                let target = RelationTarget::from_expr(&nv.value)?;
+                Ok(Self {
+                    target,
+                    fk: None,
+                    method_name: None,
+                    // Caller sets it.
+                    cardinality: Cardinality::HasMany,
+                })
+            }
+            // `has_many(Post, fk = "col", as = "name")`
+            syn::Meta::List(list) => {
+                let args: HasRelSpecArgs = syn::parse2(list.tokens.clone())
+                    .map_err(|e| darling::Error::custom(e.to_string()).with_span(item))?;
+                Ok(Self {
+                    target: args.target,
+                    fk: args.fk,
+                    method_name: args.method_name,
+                    // Caller sets it.
+                    cardinality: Cardinality::HasMany,
+                })
+            }
+            _ => Err(darling::Error::custom(
+                "expected name-value or list, e.g. #[lorm(has_many = Post)] or #[lorm(has_many(Post, fk = \"col\"))]",
+            )
+            .with_span(item)),
+        }
+    }
+}
+
+impl darling::FromMeta for HasRelSpec {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        Self::from_meta_without_cardinality(item)
+    }
+
+    fn from_expr(expr: &syn::Expr) -> darling::Result<Self> {
+        let target = RelationTarget::from_expr(expr)?;
+        Ok(Self {
+            target,
+            fk: None,
+            method_name: None,
+            // Caller sets it.
+            cardinality: Cardinality::HasMany,
+        })
+    }
+}
+
+fn parse_has_many_spec(meta: &syn::Meta) -> darling::Result<HasRelSpec> {
+    HasRelSpec::from_meta_without_cardinality(meta)
+        .map(|s| s.with_cardinality(Cardinality::HasMany))
+}
+
+fn parse_has_one_spec(meta: &syn::Meta) -> darling::Result<HasRelSpec> {
+    HasRelSpec::from_meta_without_cardinality(meta).map(|s| s.with_cardinality(Cardinality::HasOne))
+}
+
 #[derive(Debug, FromMeta)]
 struct ColumnPropertyAttrs {
     #[darling(rename = "pk")]
@@ -135,6 +349,9 @@ struct ColumnPropertyAttrs {
 
     #[darling(rename = "flattened")]
     flattened_fields: Option<FlattenedFields>,
+
+    #[darling(rename = "belongs_to")]
+    belongs_to_target: Option<RelationTarget>,
 }
 
 #[derive(Debug, Clone)]
@@ -167,6 +384,9 @@ pub struct ColumnProperties {
     pub is_set_expression: Option<Callable>,
 
     pub use_json: bool,
+
+    #[allow(dead_code)]
+    pub belongs_to_target: Option<RelationTarget>,
 }
 
 #[derive(Debug, FromAttributes)]
@@ -267,6 +487,32 @@ impl ColumnProperties {
             ));
         }
 
+        if value.belongs_to_target.is_some() && value.is_primary_key.is_present() {
+            return Err(syn::Error::new(
+                field.span(),
+                "The `belongs_to` attribute is incompatible with `#[lorm(pk)]`. A primary key field cannot be a foreign key reference.",
+            ));
+        }
+
+        if value.belongs_to_target.is_some()
+            && (sqlx.flatten.is_present() || value.flattened_fields.is_some())
+        {
+            return Err(darling::Error::custom(
+                "The `belongs_to` attribute is incompatible with `#[sqlx(flatten)]` / `#[lorm(flattened)]`. A flattened field expands into multiple columns and cannot be used as a foreign key.",
+            )
+            .with_span(field)
+            .into());
+        }
+
+        if let Some(RelationTarget::SelfRef) = &value.belongs_to_target
+            && !is_option_wrapped(&field.ty)
+        {
+            return Err(syn::Error::new(
+                field.span(),
+                "Self-referential `belongs_to = Self` requires the field to be `Option<T>` (nullable FK). Use `Option<Uuid>` instead of `Uuid`.",
+            ));
+        }
+
         Ok(ColumnProperties {
             skip: sqlx.skip.is_present(),
             readonly: value.readonly.is_present(),
@@ -277,6 +523,7 @@ impl ColumnProperties {
             new_expression: value.new_expression.unwrap_or_else(default_new_expression),
             is_set_expression: value.is_set_expression,
             use_json: sqlx.is_json.is_present(),
+            belongs_to_target: value.belongs_to_target,
         })
     }
 
