@@ -48,6 +48,7 @@ pub enum Where {
 }
 
 impl Display for Where {
+    #[allow(unused_variables)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Where::Eq => write!(f, "="),
@@ -103,6 +104,7 @@ pub enum Having {
 }
 
 impl Display for Having {
+    #[allow(unused_variables)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Having::Eq => write!(f, "="),
@@ -140,6 +142,7 @@ pub enum Function {
 }
 
 impl Display for Function {
+    #[allow(unused_variables)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Function::Null => write!(f, ""),
@@ -149,5 +152,43 @@ impl Display for Function {
             Function::Min => write!(f, "MIN"),
             Function::Max => write!(f, "MAX"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_where_display() {
+        assert_eq!(Where::Eq.to_string(), "=");
+        assert_eq!(Where::NotEq.to_string(), "!=");
+        assert_eq!(Where::GreaterThan.to_string(), ">");
+        assert_eq!(Where::GreaterOrEqualTo.to_string(), ">=");
+        assert_eq!(Where::LesserThan.to_string(), "<");
+        assert_eq!(Where::LesserOrEqualTo.to_string(), "<=");
+        assert_eq!(Where::Like.to_string(), "LIKE");
+    }
+
+    #[test]
+    fn test_having_display() {
+        assert_eq!(Having::Eq.to_string(), "=");
+        assert_eq!(Having::NotEq.to_string(), "!=");
+        assert_eq!(Having::GreaterThan.to_string(), ">");
+        assert_eq!(Having::GreaterOrEqualTo.to_string(), ">=");
+        assert_eq!(Having::LesserThan.to_string(), "<");
+        assert_eq!(Having::LesserOrEqualTo.to_string(), "<=");
+        assert_eq!(Having::Like.to_string(), "LIKE");
+    }
+
+    #[test]
+    fn test_function_display() {
+        assert_eq!(Function::Null.to_string(), "");
+        assert_eq!(Function::Count { is_distinct: false }.to_string(), "COUNT");
+        assert_eq!(Function::Count { is_distinct: true }.to_string(), "COUNT");
+        assert_eq!(Function::Sum.to_string(), "SUM");
+        assert_eq!(Function::Avg.to_string(), "AVG");
+        assert_eq!(Function::Min.to_string(), "MIN");
+        assert_eq!(Function::Max.to_string(), "MAX");
     }
 }
