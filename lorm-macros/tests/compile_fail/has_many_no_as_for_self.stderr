@@ -4,5 +4,5 @@ error[E0283]: type annotations needed
 5 | #[derive(Debug, Default, Clone, FromRow, ToLOrm)]
   |                                          ^^^^^^ cannot infer type
   |
-  = note: cannot satisfy `_: Default`
+  = note: the type must implement `Default`
   = note: this error originates in the derive macro `ToLOrm` (in Nightly builds, run with -Z macro-backtrace for more info)
