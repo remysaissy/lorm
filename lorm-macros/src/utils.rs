@@ -280,4 +280,57 @@ mod tests {
         let p: syn::Path = syn::parse_str("User").unwrap();
         assert_eq!(default_belongs_to_method(&p), "user");
     }
+
+    #[test]
+    fn is_primitive_type_detects_primitives() {
+        for prim in &["i8", "i16", "i32", "i64", "i128", "isize",
+                      "u8", "u16", "u32", "u64", "u128", "usize",
+                      "f32", "f64", "bool", "char"] {
+            let ty: Type = syn::parse_str(prim).unwrap();
+            assert!(is_primitive_type(&ty), "{prim} should be primitive");
+        }
+    }
+
+    #[test]
+    fn is_primitive_type_rejects_non_primitives() {
+        for non_prim in &["String", "Uuid", "Vec<u8>", "Option<i32>"] {
+            let ty: Type = syn::parse_str(non_prim).unwrap();
+            assert!(!is_primitive_type(&ty), "{non_prim} should NOT be primitive");
+        }
+    }
+
+    #[test]
+    fn is_option_wrapped_detects_option() {
+        let ty: Type = syn::parse_str("Option<i32>").unwrap();
+        assert!(is_option_wrapped(&ty));
+
+        let ty: Type = syn::parse_str("Option<String>").unwrap();
+        assert!(is_option_wrapped(&ty));
+
+        let ty: Type = syn::parse_str("Option<Uuid>").unwrap();
+        assert!(is_option_wrapped(&ty));
+    }
+
+    #[test]
+    fn is_option_wrapped_rejects_bare_types() {
+        for bare in &["i32", "String", "Uuid", "Vec<u8>"] {
+            let ty: Type = syn::parse_str(bare).unwrap();
+            assert!(!is_option_wrapped(&ty), "{bare} should NOT be Option-wrapped");
+        }
+    }
+
+    #[test]
+    fn db_placeholder_sqlite_feature() {
+        let input: syn::DeriveInput = syn::parse_str("struct S { id: i32 }").unwrap();
+        let field = match &input.data {
+            syn::Data::Struct(s) => s.fields.iter().next().unwrap(),
+            _ => panic!("expected struct"),
+        };
+        let result = db_placeholder(field, 1).unwrap();
+        // With sqlite feature active, should return $1
+        assert_eq!(result, "$1");
+
+        let result3 = db_placeholder(field, 3).unwrap();
+        assert_eq!(result3, "$3");
+    }
 }
