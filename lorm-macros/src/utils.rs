@@ -283,9 +283,10 @@ mod tests {
 
     #[test]
     fn is_primitive_type_detects_primitives() {
-        for prim in &["i8", "i16", "i32", "i64", "i128", "isize",
-                      "u8", "u16", "u32", "u64", "u128", "usize",
-                      "f32", "f64", "bool", "char"] {
+        for prim in &[
+            "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize",
+            "f32", "f64", "bool", "char",
+        ] {
             let ty: Type = syn::parse_str(prim).unwrap();
             assert!(is_primitive_type(&ty), "{prim} should be primitive");
         }
@@ -295,7 +296,10 @@ mod tests {
     fn is_primitive_type_rejects_non_primitives() {
         for non_prim in &["String", "Uuid", "Vec<u8>", "Option<i32>"] {
             let ty: Type = syn::parse_str(non_prim).unwrap();
-            assert!(!is_primitive_type(&ty), "{non_prim} should NOT be primitive");
+            assert!(
+                !is_primitive_type(&ty),
+                "{non_prim} should NOT be primitive"
+            );
         }
     }
 
@@ -315,7 +319,10 @@ mod tests {
     fn is_option_wrapped_rejects_bare_types() {
         for bare in &["i32", "String", "Uuid", "Vec<u8>"] {
             let ty: Type = syn::parse_str(bare).unwrap();
-            assert!(!is_option_wrapped(&ty), "{bare} should NOT be Option-wrapped");
+            assert!(
+                !is_option_wrapped(&ty),
+                "{bare} should NOT be Option-wrapped"
+            );
         }
     }
 

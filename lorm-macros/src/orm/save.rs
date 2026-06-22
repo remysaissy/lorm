@@ -428,10 +428,10 @@ mod tests {
         let item_str = format!("struct TestStruct {{ pub {}: {} }}", name, ty);
         let item: syn::ItemStruct = parse_str(&item_str).unwrap();
         let field = item.fields.iter().next().unwrap().clone();
-        
+
         let boxed = Box::new(field);
         let field_ref = Box::leak(boxed);
-        
+
         Column {
             base_field: field_ref,
             column_name: name.to_string(),
@@ -495,6 +495,9 @@ mod tests {
         let col2 = create_test_column("email", "String");
         let col3 = create_test_column("age", "i32");
         let columns = vec![&col1, &col2, &col3];
-        assert_eq!(create_update_placeholders(&columns), "name = $1,email = $2,age = $3");
+        assert_eq!(
+            create_update_placeholders(&columns),
+            "name = $1,email = $2,age = $3"
+        );
     }
 }
