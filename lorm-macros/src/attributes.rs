@@ -558,3 +558,230 @@ impl FieldProperties {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use darling::FromDeriveInput;
+    use syn::parse_str;
+
+    #[test]
+    fn table_name_defaults_to_snake_case_plural() {
+        let input: syn::DeriveInput = parse_str("struct UserDetail { }").unwrap();
+        let attrs = TableAttributes::from_derive_input(&input).unwrap();
+        assert_eq!(attrs.table_name(&input), "user_details");
+    }
+
+    #[test]
+    fn table_name_uses_rename_override() {
+        let input: syn::DeriveInput = parse_str(r#"#[lorm(rename = "accounts")] struct User { }"#).unwrap();
+        let attrs = TableAttributes::from_derive_input(&input).unwrap();
+        assert_eq!(attrs.table_name(&input), "accounts");
+        assert_ne!(attrs.table_name(&input), ""); // mutant: String::new()
+        assert_ne!(attrs.table_name(&input), "xyzzy"); // mutant: "xyzzy"
+    }
+
+    #[test]
+    fn pk_selector_name_single_field_defaults_to_by_field() {
+        let input: syn::DeriveInput = parse_str("struct User { }").unwrap();
+        let attrs = TableAttributes::from_derive_input(&input).unwrap();
+        assert_eq!(attrs.pk_selector_name(&["id"]), "by_id");
+        assert_ne!(attrs.pk_selector_name(&["id"]), ""); // mutant: String::new()
+        assert_ne!(attrs.pk_selector_name(&["id"]), "xyzzy"); // mutant: "xyzzy"
+    }
+
+    #[test]
+    fn pk_selector_name_composite_uses_by_key() {
+        let input: syn::DeriveInput = parse_str("struct UserRole { }").unwrap();
+        let attrs = TableAttributes::from_derive_input(&input).unwrap();
+        assert_eq!(attrs.pk_selector_name(&["user_id", "role_id"]), "by_key");
+        assert_ne!(attrs.pk_selector_name(&["user_id", "role_id"]), "by_user_id"); // mutant: == → !=
+    }
+
+    #[test]
+    fn pk_selector_name_single_vs_composite_differ() {
+        let input: syn::DeriveInput = parse_str("struct T { }").unwrap();
+        let attrs = TableAttributes::from_derive_input(&input).unwrap();
+        assert_eq!(attrs.pk_selector_name(&["email"]), "by_email");
+        assert_eq!(attrs.pk_selector_name(&["a", "b"]), "by_key");
+    }
+
+    #[test]
+    fn pk_selector_name_uses_override() {
+        let input: syn::DeriveInput = parse_str(r#"#[lorm(pk_type = "manual", pk_selector = "find_by_ids")] struct T { }"#).unwrap();
+        let attrs = TableAttributes::from_derive_input(&input).unwrap();
+        assert_eq!(attrs.pk_selector_name(&["user_id", "role_id"]), "find_by_ids");
+    }
+
+    #[test]
+    fn has_relations_returns_all_specs() {
+        let input: syn::DeriveInput = parse_str(r#"
+            #[lorm(has_many = Post)]
+            #[lorm(has_one = Profile)]
+            struct User { }
+        "#).unwrap();
+        let attrs = TableAttributes::from_derive_input(&input).unwrap();
+        let relations: Vec<_> = attrs.has_relations().collect();
+        assert_eq!(relations.len(), 2); // mutant: empty()
+    }
+
+    #[test]
+    fn field_attributes_boolean_accessors_with_annotations() {
+        // Test that annotated fields report true
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[lorm(pk)]
+                pub id: u32,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        assert!(fa.is_primary_key());
+        assert!(!fa.is_skip());
+        assert!(!fa.is_created_at_field());
+        assert!(!fa.is_updated_at_field());
+        assert!(!fa.flatten_generate_by());
+        assert!(!fa.flatten_readonly());
+    }
+
+    #[test]
+    fn field_attributes_created_at_annotation() {
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[lorm(created_at)]
+                pub created_at: String,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        assert!(fa.is_created_at_field()); // mutant: false
+        assert!(!fa.is_updated_at_field());
+        assert!(!fa.is_primary_key());
+    }
+
+    #[test]
+    fn field_attributes_updated_at_annotation() {
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[lorm(updated_at)]
+                pub updated_at: String,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        assert!(fa.is_updated_at_field()); // mutant: false
+        assert!(!fa.is_created_at_field());
+    }
+
+    #[test]
+    fn field_attributes_skip_annotation() {
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[sqlx(skip)]
+                pub tmp: String,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        assert!(fa.is_skip()); // mutant: false
+    }
+
+    #[test]
+    fn field_attributes_by_annotation() {
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[lorm(by)]
+                pub email: String,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        assert!(fa.flatten_generate_by()); // mutant: false
+    }
+
+    #[test]
+    fn field_attributes_readonly_annotation() {
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[lorm(readonly)]
+                pub count: i32,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        assert!(fa.flatten_readonly()); // mutant: false
+    }
+
+    #[test]
+    fn column_properties_rejects_new_on_non_pk_field() {
+        // Kills the ! deletions at lines 466-468: if logic is inverted, this should NOT return Err
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[lorm(new = "String::new()")]
+                pub email: String,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        let result = FieldProperties::from(field, fa);
+        assert!(result.is_err(), "new on non-pk/ts field must be rejected");
+    }
+
+    #[test]
+    fn column_properties_rejects_is_set_on_non_pk_field() {
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[lorm(is_set = "String::is_empty")]
+                pub email: String,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        let result = FieldProperties::from(field, fa);
+        assert!(result.is_err(), "is_set on non-pk field must be rejected");
+    }
+
+    #[test]
+    fn column_properties_allows_new_on_created_at() {
+        // Ensures the || logic is correct (not && mutation): new is allowed on created_at
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[lorm(created_at, new = "String::new()")]
+                pub created_at: String,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        let result = FieldProperties::from(field, fa);
+        assert!(result.is_ok(), "new on created_at field must be allowed");
+    }
+
+    #[test]
+    fn column_properties_rejects_belongs_to_with_flatten() {
+        // Kills the || → && mutation at line 498
+        use darling::FromField;
+        let s: syn::ItemStruct = parse_str(r#"
+            struct S {
+                #[sqlx(flatten)]
+                #[lorm(belongs_to = User)]
+                pub user: String,
+            }
+        "#).unwrap();
+        let field = s.fields.iter().next().unwrap();
+        let fa = FieldAttributes::from_field(field);
+        // This might fail at darling level or ColumnProperties::from level; either way it must not succeed
+        if let Ok(fa) = fa {
+            let result = FieldProperties::from(field, fa);
+            assert!(result.is_err(), "belongs_to with flatten must be rejected");
+        }
+    }
+}

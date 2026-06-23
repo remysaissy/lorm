@@ -333,3 +333,64 @@ fn process_struct_field<'a>(field: &'a Field, columns: &mut Vec<Column<'a>>) -> 
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_str;
+
+    fn parse_model(src: &str) -> (syn::DeriveInput, syn::punctuated::Punctuated<syn::Field, syn::token::Comma>) {
+        let input: syn::DeriveInput = parse_str(src).unwrap();
+        let fields = match &input.data {
+            syn::Data::Struct(s) => match &s.fields {
+                syn::Fields::Named(n) => n.named.clone(),
+                _ => panic!("named fields required"),
+            },
+            _ => panic!("struct required"),
+        };
+        (input, fields)
+    }
+
+    #[test]
+    fn test_parse_simple() {
+        let (input, fields) = parse_model(r#"
+            struct User {
+                pub id: u32,
+            }
+        "#);
+        assert_eq!(input.ident, "User");
+        assert_eq!(fields.len(), 1);
+    }
+
+    #[test]
+    fn test_table_attributes_parsing() {
+        use crate::attributes::TableAttributes;
+        use darling::FromDeriveInput;
+        
+        let (input, _) = parse_model(r#"
+            struct User {
+                pub id: u32,
+            }
+        "#);
+        let attrs = TableAttributes::from_derive_input(&input).unwrap();
+        assert_eq!(attrs.table_name(&input), "users");
+    }
+
+    #[test]
+    fn test_field_attributes_parsing() {
+        use crate::attributes::FieldAttributes;
+        use darling::FromField;
+        
+        let (input, fields) = parse_model(r#"
+            struct User {
+                #[lorm(pk)]
+                pub id: u32,
+            }
+        "#);
+        let field = fields.first().unwrap();
+        let fa = FieldAttributes::from_field(field).unwrap();
+        assert!(fa.is_primary_key());
+    }
+
+    
+}

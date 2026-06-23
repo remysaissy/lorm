@@ -95,11 +95,14 @@ pub(crate) fn to_column_type(ty: &Type) -> syn::Result<Type> {
         && let Some(last_segment) = type_path.path.segments.last()
         && last_segment.ident == "String"
     {
-        return parse(quote::quote! { str }.into());
+        return syn::parse2(quote::quote! { str });
     }
 
     // This is a clone in disguise as `Type` doesn't implement `Clone`
-    parse(res.into_token_stream().into())
+    // parse(res.into_token_stream().into()) would use proc_macro API
+    // Use syn::parse2 instead for non-procedural macro contexts
+    let token_stream = res.into_token_stream();
+    syn::parse2(token_stream)
 }
 
 /// Generates a database-specific placeholder for a single field.
@@ -171,7 +174,7 @@ pub(crate) fn get_bind_type_where_constraint(
     let col_type = if is_primitive_type(&base_type) {
         base_type
     } else {
-        parse(quote::quote! { &#encode_lifetime #base_type }.into())?
+        syn::parse2(quote::quote! { &#encode_lifetime #base_type })?
     };
     let x = quote! {#col_type: #(#constraints)+*};
     Ok(x)
@@ -339,5 +342,58 @@ mod tests {
 
         let result3 = db_placeholder(field, 3).unwrap();
         assert_eq!(result3, "$3");
+    }
+
+    // Tests targeting survived mutants in to_column_type function
+    #[test]
+    fn to_column_type_strips_option() {
+        let ty: Type = syn::parse_str("Option<i32>").unwrap();
+        let result = to_column_type(&ty).unwrap();
+        let s = result.into_token_stream().to_string();
+        assert_eq!(s.trim(), "i32"); // kills delete match arm Type::Path mutation
+    }
+
+    #[test]
+    fn to_column_type_converts_string_to_str() {
+        let ty: Type = syn::parse_str("String").unwrap();
+        let result = to_column_type(&ty).unwrap();
+        let s = result.into_token_stream().to_string();
+        assert!(s.contains("str"), "String should become str"); // kills == → != at line 96
+    }
+
+    #[test]
+    fn to_column_type_strips_option_string_to_str() {
+        let ty: Type = syn::parse_str("Option<String>").unwrap();
+        let result = to_column_type(&ty).unwrap();
+        let s = result.into_token_stream().to_string();
+        assert!(s.contains("str"), "Option<String> inner should become str");
+    }
+
+    #[test]
+    fn to_column_type_passes_through_non_option_non_string() {
+        let ty: Type = syn::parse_str("Uuid").unwrap();
+        let result = to_column_type(&ty).unwrap();
+        let s = result.into_token_stream().to_string();
+        assert!(s.contains("Uuid")); // kills delete match arm mutation (would return empty)
+    }
+
+    #[test]
+    fn to_column_type_option_check_uses_correct_ident() {
+        // Kills == → != at line 82: if inverted, Option<i32> would NOT strip
+        let ty: Type = syn::parse_str("Option<i32>").unwrap();
+        let result = to_column_type(&ty).unwrap();
+        // Must be i32, NOT Option<i32>
+        assert!(!result.into_token_stream().to_string().contains("Option"));
+    }
+
+    #[test]
+    fn get_bind_type_where_constraint_returns_constraints() {
+        let ty: Type = syn::parse_str("String").unwrap();
+        let database_type = quote::quote!(sqlx::Sqlite);
+        let lifetime = quote::quote!('a);
+        let result = get_bind_type_where_constraint(&ty, &database_type, &lifetime).unwrap();
+        let s = result.to_string();
+        assert!(!s.is_empty()); // kills Ok(Default::default()) mutation
+        assert!(s.contains("Encode") || s.contains("Type"), "must contain trait constraints");
     }
 }
