@@ -1,0 +1,9 @@
+# cargo-mutants configuration
+# https://mutants.rs/config-file.html
+#
+# When mutating lorm-macros (the proc-macro crate), we must also run the
+# lorm integration tests because codegen functions (generate_by, generate_delete,
+# generate_select, etc.) are only exercised at compile time by the lorm test crate.
+# Without test_workspace=true, mutations to codegen functions appear "missed"
+# even though the generated code is tested.
+test_workspace = true

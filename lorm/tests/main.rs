@@ -159,6 +159,14 @@ mod models {
     #[lorm(pk_type = "manual")]
     pub struct Tag {
         #[lorm(pk)]
+        #[lorm(by)]
+        pub name: String,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    #[lorm(pk_type = "manual", rename = "tags")]
+    pub struct TagRef {
+        #[lorm(pk)]
         pub name: String,
     }
 
@@ -405,6 +413,14 @@ mod models {
     #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
     #[lorm(pk_type = "manual")]
     pub struct Tag {
+        #[lorm(pk)]
+        #[lorm(by)]
+        pub name: String,
+    }
+
+    #[derive(Debug, Default, Clone, sqlx::FromRow, lorm::ToLOrm)]
+    #[lorm(pk_type = "manual", rename = "tags")]
+    pub struct TagRef {
         #[lorm(pk)]
         pub name: String,
     }
@@ -1096,6 +1112,25 @@ async fn test_tag_full_key_upsert_idempotent() {
         .execute(&pool)
         .await
         .unwrap();
+}
+
+#[cfg(any(feature = "sqlite", feature = "postgres"))]
+#[tokio::test]
+async fn test_tag_by_name_pk_selector() {
+    use models::{Tag, TagRef};
+    let pool = get_pool().await.expect("Failed to create pool");
+
+    let tag = Tag { name: "mutation-test".to_string() };
+    let saved = tag.save(&pool).await.unwrap();
+    assert_eq!(saved.name, "mutation-test");
+
+    let fetched = Tag::by_name(&pool, "mutation-test").await.unwrap();
+    assert_eq!(fetched.name, "mutation-test");
+
+    let fetched_ref = TagRef::by_name(&pool, "mutation-test").await.unwrap();
+    assert_eq!(fetched_ref.name, "mutation-test");
+
+    fetched.delete(&pool).await.unwrap();
 }
 
 #[cfg(feature = "mysql")]

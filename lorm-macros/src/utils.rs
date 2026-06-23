@@ -2,7 +2,7 @@ use heck::ToSnakeCase;
 use pluralizer::pluralize;
 use quote::{__private::TokenStream, ToTokens, quote};
 use syn::spanned::Spanned;
-use syn::{DeriveInput, Field, PathArguments, Type, parse};
+use syn::{DeriveInput, Field, PathArguments, Type};
 
 /// Checks whether a type is a Rust primitive type.
 ///

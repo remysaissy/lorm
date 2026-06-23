@@ -336,7 +336,6 @@ fn process_struct_field<'a>(field: &'a Field, columns: &mut Vec<Column<'a>>) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use syn::parse_str;
 
     fn parse_model(src: &str) -> (syn::DeriveInput, syn::punctuated::Punctuated<syn::Field, syn::token::Comma>) {
@@ -381,7 +380,7 @@ mod tests {
         use crate::attributes::FieldAttributes;
         use darling::FromField;
         
-        let (input, fields) = parse_model(r#"
+        let (_input, fields) = parse_model(r#"
             struct User {
                 #[lorm(pk)]
                 pub id: u32,
