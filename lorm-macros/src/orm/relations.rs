@@ -195,4 +195,3 @@ pub(crate) fn generate_has_relations(model: &OrmModel) -> TokenStream {
         }
     }
 }
-

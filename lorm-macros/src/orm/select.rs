@@ -233,5 +233,3 @@ pub fn generate_select(
         }
     })
 }
-
-

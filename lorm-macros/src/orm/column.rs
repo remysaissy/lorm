@@ -86,10 +86,16 @@ mod tests {
 
     fn default_props() -> ColumnProperties {
         ColumnProperties {
-            skip: false, readonly: false, primary_key: false, generate_by: false,
-            created_at: false, updated_at: false,
+            skip: false,
+            readonly: false,
+            primary_key: false,
+            generate_by: false,
+            created_at: false,
+            updated_at: false,
             new_expression: parse_str("Default::default()").unwrap(),
-            is_set_expression: None, use_json: false, belongs_to_target: None,
+            is_set_expression: None,
+            use_json: false,
+            belongs_to_target: None,
         }
     }
 
@@ -102,28 +108,32 @@ mod tests {
 
     #[test]
     fn should_generate_query_function_true_for_generate_by() {
-        let mut p = default_props(); p.generate_by = true;
+        let mut p = default_props();
+        p.generate_by = true;
         let col = make_col_with_props(p);
         assert!(col.should_generate_query_function(false)); // kills false mutation, kills || → &&
     }
 
     #[test]
     fn should_generate_query_function_true_for_created_at() {
-        let mut p = default_props(); p.created_at = true;
+        let mut p = default_props();
+        p.created_at = true;
         let col = make_col_with_props(p);
         assert!(col.should_generate_query_function(false)); // kills || → && at line 47
     }
 
     #[test]
     fn should_generate_query_function_true_for_updated_at() {
-        let mut p = default_props(); p.updated_at = true;
+        let mut p = default_props();
+        p.updated_at = true;
         let col = make_col_with_props(p);
         assert!(col.should_generate_query_function(false)); // kills || → && at line 48
     }
 
     #[test]
     fn should_generate_query_function_true_for_generated_pk_only_when_flag_set() {
-        let mut p = default_props(); p.primary_key = true;
+        let mut p = default_props();
+        p.primary_key = true;
         let col = make_col_with_props(p);
         assert!(col.should_generate_query_function(true)); // pk + generated → true
         assert!(!col.should_generate_query_function(false)); // pk but manual → false — kills && → || at line 48

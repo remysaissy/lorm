@@ -39,5 +39,3 @@ pub fn generate_delete(executor_type: &TokenStream, model: &OrmModel) -> syn::Re
         }
     })
 }
-
-

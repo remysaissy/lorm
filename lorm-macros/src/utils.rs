@@ -394,6 +394,9 @@ mod tests {
         let result = get_bind_type_where_constraint(&ty, &database_type, &lifetime).unwrap();
         let s = result.to_string();
         assert!(!s.is_empty()); // kills Ok(Default::default()) mutation
-        assert!(s.contains("Encode") || s.contains("Type"), "must contain trait constraints");
+        assert!(
+            s.contains("Encode") || s.contains("Type"),
+            "must contain trait constraints"
+        );
     }
 }
