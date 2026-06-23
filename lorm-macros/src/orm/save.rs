@@ -418,3 +418,86 @@ pub(crate) fn create_update_placeholders<'a>(fields: &[&Column<'a>]) -> String {
         .collect::<Vec<_>>()
         .join(",")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_str;
+
+    fn create_test_column(name: &str, ty: &str) -> Column<'static> {
+        let item_str = format!("struct TestStruct {{ pub {}: {} }}", name, ty);
+        let item: syn::ItemStruct = parse_str(&item_str).unwrap();
+        let field = item.fields.iter().next().unwrap().clone();
+
+        let boxed = Box::new(field);
+        let field_ref = Box::leak(boxed);
+
+        Column {
+            base_field: field_ref,
+            column_name: name.to_string(),
+            field: parse_str::<syn::Ident>(name).unwrap(),
+            ty: parse_str(ty).unwrap(),
+            is_flattened: false,
+            column_properties: crate::attributes::ColumnProperties {
+                skip: false,
+                readonly: false,
+                primary_key: false,
+                generate_by: false,
+                created_at: false,
+                updated_at: false,
+                new_expression: parse_str("Default::default()").unwrap(),
+                is_set_expression: None,
+                use_json: false,
+                belongs_to_target: None,
+            },
+            belongs_to: None,
+        }
+    }
+
+    #[test]
+    fn test_create_insert_placeholders_empty() {
+        let columns: Vec<&Column> = vec![];
+        assert_eq!(create_insert_placeholders(&columns), "");
+    }
+
+    #[test]
+    fn test_create_insert_placeholders_single() {
+        let col = create_test_column("id", "i32");
+        let columns = vec![&col];
+        assert_eq!(create_insert_placeholders(&columns), "$1");
+    }
+
+    #[test]
+    fn test_create_insert_placeholders_multiple() {
+        let col1 = create_test_column("id", "i32");
+        let col2 = create_test_column("name", "String");
+        let col3 = create_test_column("email", "String");
+        let columns = vec![&col1, &col2, &col3];
+        assert_eq!(create_insert_placeholders(&columns), "$1,$2,$3");
+    }
+
+    #[test]
+    fn test_create_update_placeholders_empty() {
+        let columns: Vec<&Column> = vec![];
+        assert_eq!(create_update_placeholders(&columns), "");
+    }
+
+    #[test]
+    fn test_create_update_placeholders_single() {
+        let col = create_test_column("name", "String");
+        let columns = vec![&col];
+        assert_eq!(create_update_placeholders(&columns), "name = $1");
+    }
+
+    #[test]
+    fn test_create_update_placeholders_multiple() {
+        let col1 = create_test_column("name", "String");
+        let col2 = create_test_column("email", "String");
+        let col3 = create_test_column("age", "i32");
+        let columns = vec![&col1, &col2, &col3];
+        assert_eq!(
+            create_update_placeholders(&columns),
+            "name = $1,email = $2,age = $3"
+        );
+    }
+}
