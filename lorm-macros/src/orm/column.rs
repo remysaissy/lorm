@@ -62,3 +62,80 @@ impl<'a> Clone for Column<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::attributes::ColumnProperties;
+    use syn::parse_str;
+
+    fn make_col_with_props(props: ColumnProperties) -> Column<'static> {
+        let item: syn::ItemStruct = parse_str("struct S { pub f: i32 }").unwrap();
+        let field = item.fields.iter().next().unwrap().clone();
+        let field_ref: &'static syn::Field = Box::leak(Box::new(field));
+        Column {
+            base_field: field_ref,
+            field: parse_str::<syn::Ident>("f").unwrap(),
+            ty: parse_str("i32").unwrap(),
+            column_name: "f".to_string(),
+            is_flattened: false,
+            column_properties: props,
+            belongs_to: None,
+        }
+    }
+
+    fn default_props() -> ColumnProperties {
+        ColumnProperties {
+            skip: false,
+            readonly: false,
+            primary_key: false,
+            generate_by: false,
+            created_at: false,
+            updated_at: false,
+            new_expression: parse_str("Default::default()").unwrap(),
+            is_set_expression: None,
+            use_json: false,
+            belongs_to_target: None,
+        }
+    }
+
+    #[test]
+    fn should_generate_query_function_false_for_plain_field() {
+        let col = make_col_with_props(default_props());
+        assert!(!col.should_generate_query_function(true)); // kills true mutation
+        assert!(!col.should_generate_query_function(false));
+    }
+
+    #[test]
+    fn should_generate_query_function_true_for_generate_by() {
+        let mut p = default_props();
+        p.generate_by = true;
+        let col = make_col_with_props(p);
+        assert!(col.should_generate_query_function(false)); // kills false mutation, kills || → &&
+    }
+
+    #[test]
+    fn should_generate_query_function_true_for_created_at() {
+        let mut p = default_props();
+        p.created_at = true;
+        let col = make_col_with_props(p);
+        assert!(col.should_generate_query_function(false)); // kills || → && at line 47
+    }
+
+    #[test]
+    fn should_generate_query_function_true_for_updated_at() {
+        let mut p = default_props();
+        p.updated_at = true;
+        let col = make_col_with_props(p);
+        assert!(col.should_generate_query_function(false)); // kills || → && at line 48
+    }
+
+    #[test]
+    fn should_generate_query_function_true_for_generated_pk_only_when_flag_set() {
+        let mut p = default_props();
+        p.primary_key = true;
+        let col = make_col_with_props(p);
+        assert!(col.should_generate_query_function(true)); // pk + generated → true
+        assert!(!col.should_generate_query_function(false)); // pk but manual → false — kills && → || at line 48
+    }
+}
